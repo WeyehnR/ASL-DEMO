@@ -86,3 +86,75 @@ mark {
 #article-container a {
     color: #0066cc;
 }
+
+/* ASL Video Popup */
+#asl-video-popup {
+    display: none;
+    position: absolute;
+    z-index: 10000;
+    background: #1a1a1a;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    width: 240px;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+}
+
+.asl-popup-header {
+    background: #2a2a2a;
+    padding: 8px 12px;
+    border-bottom: 1px solid #333;
+}
+
+.asl-popup-title {
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.asl-popup-video-container {
+    position: relative;
+    width: 100%;
+    height: 180px;
+    background: #000;
+}
+
+.asl-popup-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: none;
+}
+
+.asl-popup-loading,
+.asl-popup-no-video {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #888;
+    font-size: 14px;
+    display: none;
+}
+
+#asl-video-popup.loading .asl-popup-loading {
+    display: block;
+}
+
+#asl-video-popup.no-video .asl-popup-no-video {
+    display: block;
+}
+
+#asl-video-popup.has-video .asl-popup-video {
+    display: block;
+}
+
+.asl-popup-word {
+    padding: 10px 12px;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    background: #2a2a2a;
+    border-top: 1px solid #333;
+}

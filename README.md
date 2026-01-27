@@ -17,10 +17,10 @@ The folder should contain:
 
 ### 2. Download mark.js
 
-Download mark.js to the Test folder:
+Download mark.js to the lib folder:
 
 ```bash
-curl -o Test/mark.min.js https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/mark.min.js
+curl -o Test/lib/mark.min.js https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/mark.min.js
 ```
 
 Or download manually from: https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/mark.min.js

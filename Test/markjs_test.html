@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>mark.js Demo - ASL Extension</title>
-    <link rel="stylesheet" href="test.css">
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
     <!-- Test Controls -->
@@ -24,8 +24,12 @@
     </div>
 
     <!-- mark.js library -->
-    <script src="mark.min.js"></script>
-    <!-- Our demo code -->
-    <script src="markjs_demo.js"></script>
+    <script src="lib/mark.min.js"></script>
+
+    <!-- ASL Extension modules (order matters) -->
+    <script src="js/asl-popup.js"></script>
+    <script src="js/asl-video.js"></script>
+    <script src="js/asl-highlighter.js"></script>
+    <script src="js/main.js"></script>
 </body>
 </html>

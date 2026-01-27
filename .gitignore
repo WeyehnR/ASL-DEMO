@@ -2,7 +2,7 @@
 archive/
 
 # Libraries (download separately)
-mark.min.js
+**/lib/mark.min.js
 
 # Node modules
 node_modules/
