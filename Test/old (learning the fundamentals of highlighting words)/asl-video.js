@@ -20,7 +20,7 @@ function loadASLVideo(word) {
     // 3. Build path to video file
 
     // For now, try direct path
-    const videoPath = `../archive/videos/${word.toLowerCase()}.mp4`;
+    const videoPath = `${CONFIG.video.basePath}${word.toLowerCase()}.mp4`;
 
     source.src = videoPath;
     video.load();

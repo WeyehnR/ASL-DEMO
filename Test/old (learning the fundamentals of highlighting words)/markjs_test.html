@@ -12,8 +12,8 @@
         <h3>mark.js Demo</h3>
         <div>
             <input type="text" id="word-input" placeholder="Enter word" value="ASL">
-            <button onclick="testHighlight()">Highlight</button>
-            <button class="clear" onclick="clearHighlights()">Clear</button>
+            <button id="highlight-btn">Highlight</button>
+            <button id="clear-btn" class="clear">Clear</button>
         </div>
         <div id="result"></div>
     </div>
@@ -27,6 +27,7 @@
     <script src="lib/mark.min.js"></script>
 
     <!-- ASL Extension modules (order matters) -->
+    <script src="js/config.js"></script>
     <script src="js/asl-popup.js"></script>
     <script src="js/asl-video.js"></script>
     <script src="js/asl-highlighter.js"></script>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASL Extension - MVP Architecture</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Test Controls -->
+    <div id="test-controls">
+        <h3>ASL Demo (MVP)</h3>
+        <div>
+            <input type="text" id="word-input" placeholder="Enter word" value="ASL">
+            <button id="highlight-btn">Highlight</button>
+            <button id="clear-btn" class="clear">Clear</button>
+        </div>
+        <div id="result"></div>
+    </div>
+
+    <!-- Article content will be loaded here -->
+    <div id="article-container">
+        <p>Loading...</p>
+    </div>
+
+    <!-- Libraries -->
+    <script src="lib/mark.min.js"></script>
+
+    <!-- Config -->
+    <script src="js/config.js"></script>
+
+    <!-- Model Layer -->
+    <script src="js/model/state.js"></script>
+    <script src="js/model/video-data.js"></script>
+
+    <!-- View Layer -->
+    <script src="js/view/popup-view.js"></script>
+    <script src="js/view/highlight-view.js"></script>
+    <script src="js/view/result-view.js"></script>
+
+    <!-- Presenter Layer -->
+    <script src="js/presenter/popup-presenter.js"></script>
+    <script src="js/presenter/highlight-presenter.js"></script>
+    <script src="js/presenter/app-presenter.js"></script>
+</body>
+</html>

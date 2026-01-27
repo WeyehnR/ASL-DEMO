@@ -75,17 +75,17 @@ function positionPopup(popup, element) {
     popup.style.display = 'block';
 
     // Position above or below based on available space
-    const popupHeight = 280;
+    const { height, offset, minLeft, leftAdjust } = CONFIG.popup;
     const spaceAbove = rect.top;
     const spaceBelow = window.innerHeight - rect.bottom;
 
-    if (spaceBelow >= popupHeight || spaceBelow > spaceAbove) {
-        popup.style.top = (rect.bottom + scrollTop + 8) + 'px';
+    if (spaceBelow >= height || spaceBelow > spaceAbove) {
+        popup.style.top = (rect.bottom + scrollTop + offset) + 'px';
     } else {
-        popup.style.top = (rect.top + scrollTop - popupHeight - 8) + 'px';
+        popup.style.top = (rect.top + scrollTop - height - offset) + 'px';
     }
 
-    popup.style.left = Math.max(10, rect.left + scrollLeft - 50) + 'px';
+    popup.style.left = Math.max(minLeft, rect.left + scrollLeft - leftAdjust) + 'px';
 }
 
 /**
@@ -99,7 +99,7 @@ function hideVideoPopup() {
             video.pause();
             video.src = '';
         }
-    }, 200);
+    }, CONFIG.timing.hideDelay);
 }
 
 /**

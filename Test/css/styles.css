@@ -1,3 +1,31 @@
+:root {
+    /* Colors - Controls */
+    --controls-bg: #333;
+    --controls-text: #fff;
+    --btn-primary: #4CAF50;
+    --btn-primary-hover: #45a049;
+    --btn-danger: #f44336;
+    --btn-danger-hover: #d32f2f;
+    --result-text: #90EE90;
+
+    /* Colors - Popup */
+    --popup-bg: #1a1a1a;
+    --popup-header: #2a2a2a;
+    --popup-border: #333;
+    --popup-text: #fff;
+    --popup-muted: #888;
+    --popup-video-bg: #000;
+
+    /* Colors - Article */
+    --article-bg: #fafafa;
+    --article-heading: #333;
+    --article-text: #444;
+    --article-link: #0066cc;
+
+    /* Highlight */
+    --highlight-bg: yellow;
+}
+
 body {
     font-family: Georgia, serif;
     max-width: 800px;
@@ -11,8 +39,8 @@ body {
     position: fixed;
     top: 10px;
     right: 10px;
-    background: #333;
-    color: white;
+    background: var(--controls-bg);
+    color: var(--controls-text);
     padding: 15px;
     border-radius: 8px;
     z-index: 9999;
@@ -34,8 +62,8 @@ body {
 
 #test-controls button {
     padding: 8px 12px;
-    background: #4CAF50;
-    color: white;
+    background: var(--btn-primary);
+    color: var(--controls-text);
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -43,48 +71,48 @@ body {
 }
 
 #test-controls button:hover {
-    background: #45a049;
+    background: var(--btn-primary-hover);
 }
 
 #test-controls button.clear {
-    background: #f44336;
+    background: var(--btn-danger);
 }
 
 #test-controls button.clear:hover {
-    background: #d32f2f;
+    background: var(--btn-danger-hover);
 }
 
 #result {
     margin-top: 10px;
     font-size: 14px;
-    color: #90EE90;
+    color: var(--result-text);
 }
 
-/* Your highlight style */
+/* Highlight style */
 mark {
-    background: yellow;
+    background: var(--highlight-bg);
     padding: 0 2px;
     border-radius: 2px;
 }
 
 /* Article styles */
 #article-container {
-    background: #fafafa;
+    background: var(--article-bg);
     padding: 20px;
     border-radius: 8px;
 }
 
 #article-container h1 {
-    color: #333;
+    color: var(--article-heading);
 }
 
 #article-container p {
     margin: 15px 0;
-    color: #444;
+    color: var(--article-text);
 }
 
 #article-container a {
-    color: #0066cc;
+    color: var(--article-link);
 }
 
 /* ASL Video Popup */
@@ -92,7 +120,7 @@ mark {
     display: none;
     position: absolute;
     z-index: 10000;
-    background: #1a1a1a;
+    background: var(--popup-bg);
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     width: 240px;
@@ -101,13 +129,13 @@ mark {
 }
 
 .asl-popup-header {
-    background: #2a2a2a;
+    background: var(--popup-header);
     padding: 8px 12px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--popup-border);
 }
 
 .asl-popup-title {
-    color: #fff;
+    color: var(--popup-text);
     font-size: 12px;
     font-weight: 500;
 }
@@ -116,7 +144,7 @@ mark {
     position: relative;
     width: 100%;
     height: 180px;
-    background: #000;
+    background: var(--popup-video-bg);
 }
 
 .asl-popup-video {
@@ -132,7 +160,7 @@ mark {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    color: #888;
+    color: var(--popup-muted);
     font-size: 14px;
     display: none;
 }
@@ -151,10 +179,10 @@ mark {
 
 .asl-popup-word {
     padding: 10px 12px;
-    color: #fff;
+    color: var(--popup-text);
     font-size: 16px;
     font-weight: 600;
     text-align: center;
-    background: #2a2a2a;
-    border-top: 1px solid #333;
+    background: var(--popup-header);
+    border-top: 1px solid var(--popup-border);
 }

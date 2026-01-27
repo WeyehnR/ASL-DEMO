@@ -4,9 +4,9 @@
  */
 
 /**
- * Test function called by button
+ * Highlight word from input
  */
-function testHighlight() {
+function handleHighlight() {
     const word = document.getElementById('word-input').value;
     if (word) {
         highlightWord(word);
@@ -31,11 +31,23 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error(err);
         });
 
-    // Enter key triggers highlight
+    // Button event listeners
+    const highlightBtn = document.getElementById('highlight-btn');
+    const clearBtn = document.getElementById('clear-btn');
     const input = document.getElementById('word-input');
+
+    if (highlightBtn) {
+        highlightBtn.addEventListener('click', handleHighlight);
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', clearHighlights);
+    }
+
+    // Enter key triggers highlight
     if (input) {
         input.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') testHighlight();
+            if (e.key === 'Enter') handleHighlight();
         });
     }
 });
