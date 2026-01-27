@@ -1,30 +1,35 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Word Highlight - Learning Exercise</title>
-    <link rel="stylesheet" href="test.css">
-</head>
-<body>
+    <link rel="stylesheet" href="test.css" />
+  </head>
+  <body>
     <!-- Test Controls -->
     <div id="test-controls">
-        <h3>Highlight Tester</h3>
-        <div>
-            <input type="text" id="word-input" placeholder="Enter word" value="ASL">
-            <button onclick="testHighlight()">Highlight</button>
-            <button class="clear" onclick="clearHighlight()">Clear</button>
-        </div>
-        <div id="result"></div>
+      <h3>Highlight Tester</h3>
+      <div>
+        <input
+          type="text"
+          id="word-input"
+          placeholder="Enter word"
+          value="ASL"
+        />
+        <button onclick="testHighlight()">Highlight</button>
+        <button class="clear" onclick="clearHighlight()">Clear</button>
+      </div>
+      <div id="result"></div>
     </div>
 
     <!-- Article content will be loaded here -->
     <div id="article-container">
-        <p>Loading...</p>
+      <p>Loading...</p>
     </div>
 
     <!-- Your highlight script (no mark.js!) -->
     <script src="word_highlight.js"></script>
     <!-- <script src="word_highlight.test.js"></script> -->
-</body>
+  </body>
 </html>
