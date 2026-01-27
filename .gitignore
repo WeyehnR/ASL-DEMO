@@ -1,6 +1,9 @@
 # WLASL dataset (large video files)
 archive/
 
+# Libraries (download separately)
+mark.min.js
+
 # Node modules
 node_modules/
 
