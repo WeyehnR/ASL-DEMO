@@ -7,30 +7,12 @@ import { VideoData } from '../model/video-data.js';
 import { CONFIG } from '../config.js';
 
 const VideoDataTests = {
-  // Mock WLASL data for testing
-  mockData: [
-    {
-      gloss: "book",
-      instances: [
-        { video_id: "07068" },
-        { video_id: "07069" },
-        { video_id: "07070" }
-      ]
-    },
-    {
-      gloss: "hello",
-      instances: [
-        { video_id: "12345" }
-      ]
-    },
-    {
-      gloss: "thank you",
-      instances: [
-        { video_id: "99001" },
-        { video_id: "99002" }
-      ]
-    }
-  ],
+  // Mock glossary data (pre-built hashmap format)
+  mockGlossary: {
+    "book": ["07068", "07069", "07070"],
+    "hello": ["12345"],
+    "thank you": ["99001", "99002"]
+  },
 
   results: [],
 
@@ -47,35 +29,34 @@ const VideoDataTests = {
     VideoData.isLoaded = false;
   },
 
-  // Test: loadHashmap creates correct structure
-  testLoadHashmap() {
+  // Test: wordToVideos structure is correct
+  testWordToVideos() {
     this.setup();
-    VideoData.loadHashmap(this.mockData);
-    console.log(VideoData.wordToVideos)
+    VideoData.wordToVideos = this.mockGlossary;
 
     // Check that all words exist as keys
     const hasBook = "book" in VideoData.wordToVideos;
     const hasHello = "hello" in VideoData.wordToVideos;
     const hasThankYou = "thank you" in VideoData.wordToVideos;
 
-    this.assert(hasBook, "loadHashmap: 'book' key exists");
-    this.assert(hasHello, "loadHashmap: 'hello' key exists");
-    this.assert(hasThankYou, "loadHashmap: 'thank you' key exists");
+    this.assert(hasBook, "wordToVideos: 'book' key exists");
+    this.assert(hasHello, "wordToVideos: 'hello' key exists");
+    this.assert(hasThankYou, "wordToVideos: 'thank you' key exists");
 
     // Check that values are arrays with correct video_ids
     const bookVideos = VideoData.wordToVideos["book"];
-    this.assert(Array.isArray(bookVideos), "loadHashmap: 'book' value is array");
-    this.assert(bookVideos.length === 3, "loadHashmap: 'book' has 3 videos");
-    this.assert(bookVideos.includes("07068"), "loadHashmap: 'book' contains '07068'");
+    this.assert(Array.isArray(bookVideos), "wordToVideos: 'book' value is array");
+    this.assert(bookVideos.length === 3, "wordToVideos: 'book' has 3 videos");
+    this.assert(bookVideos.includes("07068"), "wordToVideos: 'book' contains '07068'");
 
     const helloVideos = VideoData.wordToVideos["hello"];
-    this.assert(helloVideos.length === 1, "loadHashmap: 'hello' has 1 video");
+    this.assert(helloVideos.length === 1, "wordToVideos: 'hello' has 1 video");
   },
 
   // Test: hasWord returns correct boolean
   testHasWord() {
     this.setup();
-    VideoData.loadHashmap(this.mockData);
+    VideoData.wordToVideos = this.mockGlossary;
 
     this.assert(VideoData.hasWord("book") === true, "hasWord: returns true for 'book'");
     this.assert(VideoData.hasWord("hello") === true, "hasWord: returns true for 'hello'");
@@ -86,7 +67,7 @@ const VideoDataTests = {
   // Test: getRandomVideoForWord returns valid video_id
   testGetRandomVideoForWord() {
     this.setup();
-    VideoData.loadHashmap(this.mockData);
+    VideoData.wordToVideos = this.mockGlossary;
 
     const bookVideo = VideoData.getRandomVideoForWord("book");
     const validBookIds = ["07068", "07069", "07070"];
@@ -106,7 +87,7 @@ const VideoDataTests = {
   // Test: getVideoPath returns correctly formatted path
   testGetVideoPath() {
     this.setup();
-    VideoData.loadHashmap(this.mockData);
+    VideoData.wordToVideos = this.mockGlossary;
 
     const path = VideoData.getVideoPath("book");
 
@@ -130,7 +111,7 @@ const VideoDataTests = {
   runAll() {
     this.results = [];
 
-    this.testLoadHashmap();
+    this.testWordToVideos();
     this.testHasWord();
     this.testGetRandomVideoForWord();
     this.testGetVideoPath();

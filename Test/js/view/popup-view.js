@@ -3,7 +3,9 @@
  * Handles all popup DOM operations - passive, controlled by Presenter
  */
 
-const PopupView = {
+import { CONFIG } from '../config.js';
+
+export const PopupView = {
     element: null,
     videoElement: null,
     hideTimeout: null,
@@ -21,9 +23,7 @@ const PopupView = {
                 <span class="asl-popup-title">ASL Sign</span>
             </div>
             <div class="asl-popup-video-container">
-                <video class="asl-popup-video" autoplay loop muted playsinline>
-                    <source src="" type="video/mp4">
-                </video>
+                <video class="asl-popup-video" autoplay loop muted playsinline></video>
                 <div class="asl-popup-loading">Loading...</div>
                 <div class="asl-popup-no-video">No video available</div>
             </div>
@@ -111,9 +111,7 @@ const PopupView = {
      * Load video source
      */
     loadVideo(src, onSuccess, onError) {
-        const source = this.videoElement.querySelector('source');
-        source.src = src;
-        this.videoElement.load();
+        this.videoElement.src = src || '';
 
         this.videoElement.oncanplay = () => {
             this.videoElement.play();

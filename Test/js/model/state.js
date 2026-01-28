@@ -3,7 +3,7 @@
  * Holds all application state - no DOM knowledge
  */
 
-const AppState = {
+export const AppState = {
     currentWord: '',
     isLoading: false,
     hasVideo: false,

@@ -3,7 +3,11 @@
  * Coordinates between PopupView and Models for popup behavior
  */
 
-const PopupPresenter = {
+import { VideoData } from '../model/video-data.js';
+import { AppState } from '../model/state.js';
+import { PopupView } from '../view/popup-view.js';
+
+export const PopupPresenter = {
     /**
      * Initialize presenter - bind view events
      */

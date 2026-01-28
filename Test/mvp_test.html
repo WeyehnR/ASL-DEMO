@@ -24,24 +24,10 @@
         <p>Loading...</p>
     </div>
 
-    <!-- Libraries -->
+    <!-- Libraries (non-module, must load first) -->
     <script src="lib/mark.min.js"></script>
 
-    <!-- Config -->
-    <script src="js/config.js"></script>
-
-    <!-- Model Layer -->
-    <script src="js/model/state.js"></script>
-    <script src="js/model/video-data.js"></script>
-
-    <!-- View Layer -->
-    <script src="js/view/popup-view.js"></script>
-    <script src="js/view/highlight-view.js"></script>
-    <script src="js/view/result-view.js"></script>
-
-    <!-- Presenter Layer -->
-    <script src="js/presenter/popup-presenter.js"></script>
-    <script src="js/presenter/highlight-presenter.js"></script>
-    <script src="js/presenter/app-presenter.js"></script>
+    <!-- App Entry Point (ES Module - imports everything else) -->
+    <script type="module" src="js/presenter/app-presenter.js"></script>
 </body>
 </html>

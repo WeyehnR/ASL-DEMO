@@ -3,7 +3,7 @@
  * Handles the result display DOM operations
  */
 
-const ResultView = {
+export const ResultView = {
     element: null,
 
     /**

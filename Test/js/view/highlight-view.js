@@ -3,7 +3,7 @@
  * Handles text highlighting DOM operations - wraps mark.js
  */
 
-const HighlightView = {
+export const HighlightView = {
     markInstance: null,
     container: null,
 

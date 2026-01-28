@@ -3,6 +3,11 @@
  * Main application coordinator - handles page setup and top-level events
  */
 
+import { VideoData } from "../model/video-data.js";
+import { HighlightPresenter } from "./highlight-presenter.js";
+import { PopupPresenter } from "./popup-presenter.js";
+import { HighlightView } from "../view/highlight-view.js";
+
 const AppPresenter = {
     /**
      * Initialize the application
@@ -86,6 +91,8 @@ const AppPresenter = {
 };
 
 // Start app when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await VideoData.init();
     AppPresenter.init();
+    HighlightPresenter.highlightAllGlossaryWords();
 });
