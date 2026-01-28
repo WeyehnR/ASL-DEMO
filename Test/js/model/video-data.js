@@ -3,9 +3,20 @@
  * Handles WLASL dataset lookup
  */
 
-const VideoData = {
+import { CONFIG } from '../config.js';
+import { buildHashmap } from '../utils/hashmap-builder.js';
+
+export const VideoData = {
   wordToVideos: {},
   isLoaded: false,
+
+  /**
+       * jsonData = [
+      { gloss: "book", instances: [{ video_id: "00001" }, { video_id: "00002" }] },
+      { gloss: "hello", instances: [{ video_id: "00003" }] },
+      // ... more entries
+    ];
+    */
 
   // Implement VideoData.init() - load and parse WLASL JSON
   async init() {
@@ -15,7 +26,7 @@ const VideoData = {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
       const jsonData = await response.json();
-      this.buildHashmap(jsonData);
+      this.loadHashmap(jsonData);
       this.isLoaded = true;
     } catch (error) {
       console.error("Failed to fetch data: ", error);
@@ -37,41 +48,29 @@ const VideoData = {
       ]
       
       */
-  buildHashmap(wlaslArray) {
-    for (let i = 0; i < wlaslArray.length; i++) {
-      const word = wlaslArray[i].gloss;
-      const instances = wlaslArray[i].instances;
-      this.wordToVideos[word] = [];
-      for (let j = 0; j < instances.length; j++) {
-        this.wordToVideos[word].push(instances[j].video_id);
-      }
-    }
-    console.log(this.wordToVideos);
+  loadHashmap(wlaslArray) {
+    this.wordToVideos = buildHashmap(wlaslArray);
   },
-
-  /**
-     * jsonData = [
-    { gloss: "book", instances: [{ video_id: "00001" }, { video_id: "00002" }] },
-    { gloss: "hello", instances: [{ video_id: "00003" }] },
-    // ... more entries
-  ];
-  */
 
   // Implement VideoData.getVideoPath() - lookup word in hashmap
   getVideoPath(word) {
     try {
-        if(this.hasWord(word))
-        {
-            this.wordToVideos[word]
-        }
-    } catch (error) {}
+      if (this.hasWord(word)) {
+        return CONFIG.video.basePath + this.getRandomVideoForWord(word) + CONFIG.video.extension
+      }
+    } catch (error) {
+      console.error(error);
+    }
   },
 
-  getRandomVideoForWord(word) {},
+  getRandomVideoForWord(word) {
+    //this is an array of video ids
+    const instances = this.wordToVideos[word];
+    const randomIndex = Math.floor(Math.random() * instances.length);
+    return instances[randomIndex];
+  },
   // Implement VideoData.hasWord() - check if word exists
   hasWord(word) {
-    return this.wordToVideos[word] === word ? true : false
-  },
-
-  getWordList() {},
+    return Object.hasOwn(this.wordToVideos,word);
+  }
 };

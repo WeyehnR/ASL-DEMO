@@ -3,7 +3,7 @@
  * Centralized settings for easy adjustment
  */
 
-const CONFIG = {
+export const CONFIG = {
     // Popup positioning
     popup: {
         height: 280,           // Estimated popup height for positioning
@@ -19,6 +19,8 @@ const CONFIG = {
 
     // Video paths
     video: {
-        basePath: '../archive/videos/'
+        basePath: '../archive/videos/',
+        extension:".mp4"
+
     }
 };
