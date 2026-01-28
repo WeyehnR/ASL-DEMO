@@ -37,7 +37,8 @@ export const HighlightPresenter = {
             );
         });
 
-        console.log(`Highlighted ${totalCount} total matches for ${words.length} glossary words`);
+        // console.log(`Highlighted ${totalCount} total matches for ${words.length} glossary words`);
+
     },
 
     /**

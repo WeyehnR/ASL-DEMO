@@ -31,7 +31,7 @@ body {
     max-width: 800px;
     margin: 0 auto;
     padding: 20px;
-    padding-top: 80px;
+    padding-right: 290px;
     line-height: 1.6;
 }
 
@@ -39,12 +39,16 @@ body {
     position: fixed;
     top: 10px;
     right: 10px;
+    bottom: 10px;
+    width: 250px;
     background: var(--controls-bg);
     color: var(--controls-text);
     padding: 15px;
     border-radius: 8px;
     z-index: 9999;
     font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
 }
 
 #test-controls h3 {
@@ -86,6 +90,29 @@ body {
     margin-top: 10px;
     font-size: 14px;
     color: var(--result-text);
+}
+
+/* Word Chips */
+#word-chips {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+.word-chip {
+    display: inline-block;
+    padding: 4px 8px;
+    margin: 2px;
+    background: #555;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.word-chip:hover {
+    background: var(--btn-primary);
 }
 
 /* Highlight style */

@@ -7,6 +7,7 @@ import { VideoData } from "../model/video-data.js";
 import { HighlightPresenter } from "./highlight-presenter.js";
 import { PopupPresenter } from "./popup-presenter.js";
 import { HighlightView } from "../view/highlight-view.js";
+import { WordChipsView } from "../view/word-chips-view.js";
 
 const AppPresenter = {
     /**
@@ -41,6 +42,9 @@ const AppPresenter = {
 
                 // Set container for highlighting
                 HighlightView.setContainer(container);
+
+                // Find glossary words in article and render chips
+                this.populateWordChips(container.textContent);
             })
             .catch(err => {
                 document.getElementById('article-container').innerHTML =
@@ -50,35 +54,26 @@ const AppPresenter = {
     },
 
     /**
-     * Bind UI event handlers
+     * Populate word chips with glossary words found in text
      */
-    bindEvents() {
-        const highlightBtn = document.getElementById('highlight-btn');
-        const clearBtn = document.getElementById('clear-btn');
-        const input = document.getElementById('word-input');
+    populateWordChips(text) {
+        const words = VideoData.getWordsInText(text);
+        words.sort();
 
-        if (highlightBtn) {
-            highlightBtn.addEventListener('click', () => this.handleHighlight());
-        }
-
-        if (clearBtn) {
-            clearBtn.addEventListener('click', () => this.handleClear());
-        }
-
-        if (input) {
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') this.handleHighlight();
-            });
-        }
+        WordChipsView.setContainer(document.getElementById('word-chips'));
+        WordChipsView.render(words, (word) => {
+            HighlightPresenter.highlightWord(word);
+        });
     },
 
     /**
-     * Handle highlight action
+     * Bind UI event handlers
      */
-    handleHighlight() {
-        const word = document.getElementById('word-input').value;
-        if (word) {
-            HighlightPresenter.highlightWord(word);
+    bindEvents() {
+        const clearBtn = document.getElementById('clear-btn');
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.handleClear());
         }
     },
 

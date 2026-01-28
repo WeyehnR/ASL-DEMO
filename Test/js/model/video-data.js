@@ -3,7 +3,7 @@
  * Handles WLASL dataset lookup
  */
 
-import { CONFIG } from '../config.js';
+import { CONFIG } from "../config.js";
 
 export const VideoData = {
   wordToVideos: {},
@@ -28,7 +28,11 @@ export const VideoData = {
     try {
       const normalizedWord = word.toLowerCase();
       if (this.hasWord(normalizedWord)) {
-        return CONFIG.video.basePath + this.getRandomVideoForWord(normalizedWord) + CONFIG.video.extension
+        return (
+          CONFIG.video.basePath +
+          this.getRandomVideoForWord(normalizedWord) +
+          CONFIG.video.extension
+        );
       }
     } catch (error) {
       console.error(error);
@@ -44,5 +48,12 @@ export const VideoData = {
   // Implement VideoData.hasWord() - check if word exists
   hasWord(word) {
     return Object.hasOwn(this.wordToVideos, word.toLowerCase());
+  },
+
+  getWordsInText(text) {
+    const textLower = text.toLowerCase();
+    return Object.keys(this.wordToVideos).filter((word) =>
+      textLower.includes(word.toLowerCase()),
+    );
   }
 };
