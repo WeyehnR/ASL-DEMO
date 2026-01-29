@@ -39,7 +39,7 @@ curl -o Test/lib/mark.min.js https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11
 Start a local server (e.g., Live Server in VS Code) and open:
 
 ```
-http://localhost:5500/Test/mvp_test.html
+http://localhost:[whatever your port number are]/Test/mvp_test.html
 ```
 
 ## Architecture (MVP)
@@ -49,9 +49,9 @@ http://localhost:5500/Test/mvp_test.html
 - `Test/js/presenter/` - Business logic (AppPresenter, HighlightPresenter, PopupPresenter)
 - `Test/js/tests/` - Unit tests
 - `Test/css/styles.css` - Styles
-- `scripts/` - Build and download scripts
+- `scripts/` - Build glossary and download scripts
 
 ## Lessons Learned
 
 - **Never loop mark.js over a large glossary.** Calling `markRegExp()` individually for each of 2000+ words causes separate DOM traversals per word, freezing the browser. Instead, combine all words into a single regex using alternation (`word1|word2|...`) and run mark.js once. One DOM pass vs 2000+.
-I was initially use for a small sample of words but I note it here since i realized that I need to refactored it over 2000+ words. 
+I initially use the older highlighter logic for a small sample of words but I note it here since i realized that I need to refactored it over 2000+ words highlighted at the same time. 
