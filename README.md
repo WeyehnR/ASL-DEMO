@@ -42,7 +42,7 @@ Start a local server (e.g., Live Server in VS Code) and open:
 http://localhost:[whatever your port number are]/Test/mvp_test.html
 ```
 
-## Architecture (MVP)
+## Architecture (MVP- not Minimum Viable Product, Modal View Presenter - keeping it lightweight for a test webpage)
 
 - `Test/js/model/` - Data models (VideoData, AppState)
 - `Test/js/view/` - DOM rendering (HighlightView, PopupView, WordChipsView, ResultView)
