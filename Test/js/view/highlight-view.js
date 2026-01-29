@@ -15,7 +15,7 @@ export const HighlightView = {
     },
 
     /**
-     * Highlight all glossary words in a single pass using one combined regex
+     * Highlight all glossary words in a single pass using mark.js built-in array matching
      */
     highlightAll(words, onEachMatch, onComplete) {
         if (!this.container) {
@@ -24,35 +24,8 @@ export const HighlightView = {
 
         this.markInstance = new Mark(this.container);
 
-        // Separate words into long (4+ chars, suffix matching) and short (exact only)
-        const longWords = [];
-        const shortWords = [];
-
-        for (const word of words) {
-            const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            if (word.length >= 4) {
-                longWords.push(escaped);
-            } else {
-                shortWords.push(escaped);
-            }
-        }
-
-        // Sort longest first so longer words match before shorter ones
-        longWords.sort((a, b) => b.length - a.length);
-        shortWords.sort((a, b) => b.length - a.length);
-
-        // Build combined regex parts
-        const parts = [];
-        if (longWords.length > 0) {
-            parts.push(`(?:${longWords.join('|')})(?:s|es|ed|ing|tion|ly|ment|ness)?`);
-        }
-        if (shortWords.length > 0) {
-            parts.push(`(?:${shortWords.join('|')})`);
-        }
-
-        const regex = new RegExp(`\\b(?:${parts.join('|')})\\b`, 'gi');
-
-        this.markInstance.markRegExp(regex, {
+        this.markInstance.mark(words, {
+            accuracy: 'exactly',
             each: (element) => {
                 element.style.cursor = 'pointer';
                 if (onEachMatch) onEachMatch(element);
