@@ -43,8 +43,9 @@ const AppPresenter = {
                 // Set container for highlighting
                 HighlightView.setContainer(container);
 
-                // Find glossary words in article and render chips
-                this.populateWordChips(container.textContent);
+                // Highlight all glossary words first, then build chips from actual DOM matches
+                HighlightPresenter.highlightAllGlossaryWords();
+                this.populateWordChipsFromDOM(container);
             })
             .catch(err => {
                 document.getElementById('article-container').innerHTML =
@@ -54,11 +55,21 @@ const AppPresenter = {
     },
 
     /**
-     * Populate word chips with glossary words found in text
+     * Populate word chips from actual highlighted <mark> elements in the DOM
+     * This ensures only words with real matches appear as chips
      */
-    populateWordChips(text) {
-        const words = VideoData.getWordsInText(text);
-        words.sort();
+    populateWordChipsFromDOM(container) {
+        const marks = container.querySelectorAll('mark');
+        const matchedWords = new Set();
+
+        marks.forEach(mark => {
+            const baseWord = VideoData.findBaseWord(mark.textContent);
+            if (baseWord) {
+                matchedWords.add(baseWord);
+            }
+        });
+
+        const words = [...matchedWords].sort();
 
         WordChipsView.setContainer(document.getElementById('word-chips'));
         WordChipsView.render(words, (word) => {
@@ -89,5 +100,4 @@ const AppPresenter = {
 document.addEventListener('DOMContentLoaded', async () => {
     await VideoData.init();
     AppPresenter.init();
-    HighlightPresenter.highlightAllGlossaryWords();
 });

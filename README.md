@@ -50,3 +50,8 @@ http://localhost:5500/Test/mvp_test.html
 - `Test/js/tests/` - Unit tests
 - `Test/css/styles.css` - Styles
 - `scripts/` - Build and download scripts
+
+## Lessons Learned
+
+- **Never loop mark.js over a large glossary.** Calling `markRegExp()` individually for each of 2000+ words causes separate DOM traversals per word, freezing the browser. Instead, combine all words into a single regex using alternation (`word1|word2|...`) and run mark.js once. One DOM pass vs 2000+.
+I was initially use for a small sample of words but I note it here since i realized that I need to refactored it over 2000+ words. 

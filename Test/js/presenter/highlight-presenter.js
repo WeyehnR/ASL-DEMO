@@ -15,34 +15,27 @@ export const HighlightPresenter = {
     currentMatchIndex: -1,
 
     /**
-     * Highlight all words from the glossary
+     * Highlight all words from the glossary in a single pass
      */
     highlightAllGlossaryWords() {
         const words = Object.keys(VideoData.wordToVideos);
-        let totalCount = 0;
 
-        words.forEach(word => {
-            HighlightView.highlight(
-                word,
-                // For each match found
-                (element) => {
-                    element.addEventListener('mouseenter', () => {
-                        PopupPresenter.showPopup(element, element.textContent);
-                    });
+        HighlightView.highlightAll(
+            words,
+            (element) => {
+                element.addEventListener('mouseenter', () => {
+                    PopupPresenter.showPopup(element, element.textContent);
+                });
 
-                    element.addEventListener('mouseleave', () => {
-                        PopupPresenter.hidePopup();
-                    });
-                },
-                // When highlighting for this word is done
-                (count) => {
-                    totalCount += count;
-                }
-            );
-        });
+                element.addEventListener('mouseleave', () => {
+                    PopupPresenter.hidePopup();
+                });
 
-        // console.log(`Highlighted ${totalCount} total matches for ${words.length} glossary words`);
-
+                element.addEventListener('click', () => {
+                    PopupPresenter.expandPopup(element, element.textContent);
+                });
+            }
+        );
     },
 
     /**
@@ -66,6 +59,10 @@ export const HighlightPresenter = {
 
                 element.addEventListener('mouseleave', () => {
                     PopupPresenter.hidePopup();
+                });
+
+                element.addEventListener('click', () => {
+                    PopupPresenter.expandPopup(element, element.textContent);
                 });
             },
             // When all highlighting is done

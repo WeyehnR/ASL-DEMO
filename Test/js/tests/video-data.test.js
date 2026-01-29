@@ -30,6 +30,9 @@ const VideoDataTests = {
     ],
     "die": [
       { entryId: "die", meanings: "die, dead, death", lexicalClass: "Verb", videoFile: "die.mp4" }
+    ],
+    "sign": [
+      { entryId: "sign", meanings: "sign, signal", lexicalClass: "Noun", videoFile: "sign.mp4" }
     ]
   },
 
@@ -135,7 +138,7 @@ const VideoDataTests = {
     VideoData.wordToVideos = this.mockGlossary;
 
     const suffixPattern = (word) =>
-      word.length >= 4 ? '(s|es|ed|ing|er|ers|tion|ly|ment|ness)?' : '';
+      word.length >= 4 ? '(s|es|ed|ing|tion|ly|ment|ness)?' : '';
 
     const testMatch = (word, text) => {
       const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -162,7 +165,7 @@ const VideoDataTests = {
     VideoData.wordToVideos = this.mockGlossary;
 
     const suffixPattern = (word) =>
-      word.length >= 4 ? '(s|es|ed|ing|er|ers|tion|ly|ment|ness)?' : '';
+      word.length >= 4 ? '(s|es|ed|ing|tion|ly|ment|ness)?' : '';
 
     const testMatch = (word, text) => {
       const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -182,6 +185,45 @@ const VideoDataTests = {
     // "book" should match suffixed forms
     this.assert(testMatch("book", "She booked a flight"), "match: 'book' -> 'booked'");
     this.assert(testMatch("book", "Two books on the shelf"), "match: 'book' -> 'books'");
+
+    // "page" should NOT match "Paget" (different word ending in 't')
+    this.assert(!testMatch("page", "Paget Gorman system"), "match: 'page' does NOT match 'Paget'");
+    this.assert(testMatch("page", "See this page for details"), "match: 'page' matches exact 'page'");
+    this.assert(testMatch("page", "Multiple pages exist"), "match: 'page' -> 'pages'");
+
+    // "sign" should NOT match "signer" or "signers" (-er/-ers create agent nouns)
+    this.assert(!testMatch("sign", "Native signers use ASL"), "match: 'sign' does NOT match 'signers'");
+    this.assert(!testMatch("sign", "The signer demonstrated"), "match: 'sign' does NOT match 'signer'");
+    this.assert(testMatch("sign", "Learn to sign"), "match: 'sign' matches exact 'sign'");
+    this.assert(testMatch("sign", "Multiple signs exist"), "match: 'sign' -> 'signs'");
+    this.assert(testMatch("sign", "She signed the document"), "match: 'sign' -> 'signed'");
+    this.assert(testMatch("sign", "He was signing"), "match: 'sign' -> 'signing'");
+  },
+
+  // Test: getWordsInText should not return false positives
+  testGetWordsInText() {
+    this.setup();
+    VideoData.wordToVideos = this.mockGlossary;
+
+    // Should find "conflict" in text containing "conflicting"
+    const words1 = VideoData.getWordsInText("The conflicting reports were discussed");
+    this.assert(words1.includes("conflict"), "getWordsInText: finds 'conflict' in 'conflicting'");
+
+    // Should NOT find "bra" in text containing only "Brazil"
+    const words2 = VideoData.getWordsInText("Brazil is a beautiful country");
+    this.assert(!words2.includes("bra"), "getWordsInText: no 'bra' in 'Brazil'");
+
+    // Should NOT find "on" in text containing only "only"
+    const words3 = VideoData.getWordsInText("She only went home");
+    this.assert(!words3.includes("on"), "getWordsInText: no 'on' in 'only'");
+
+    // Should find "on" when it's actually in the text
+    const words4 = VideoData.getWordsInText("She turned on the light");
+    this.assert(words4.includes("on"), "getWordsInText: finds 'on' in exact match");
+
+    // Should NOT find "die" in "audience"
+    const words5 = VideoData.getWordsInText("The audience applauded loudly");
+    this.assert(!words5.includes("die"), "getWordsInText: no 'die' in 'audience'");
   },
 
   // Run all tests
@@ -195,6 +237,7 @@ const VideoDataTests = {
     this.testFindBaseWord();
     this.testShortWordMatching();
     this.testLongWordMatching();
+    this.testGetWordsInText();
 
     // Report results
     const passed = this.results.filter(r => r.passed).length;

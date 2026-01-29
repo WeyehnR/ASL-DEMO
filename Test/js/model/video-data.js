@@ -11,7 +11,7 @@ export const VideoData = {
 
   // Common suffixes to strip when looking up words
   // Order matters - try longer suffixes first
-  suffixes: ['ing', 'tion', 'sion', 'ment', 'ness', 'able', 'ible', 'ful', 'less', 'ous', 'ive', 'ly', 'ed', 'er', 'es', 's'],
+  suffixes: ['ing', 'tion', 'sion', 'ment', 'ness', 'able', 'ible', 'ful', 'less', 'ous', 'ive', 'ly', 'ed', 'es', 's'],
 
   // Try to find the base/stem word in glossary
   findBaseWord(word) {
@@ -112,7 +112,7 @@ export const VideoData = {
 
     return Object.keys(this.wordToVideos).filter((word) => {
       const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const suffixPattern = word.length >= 4 ? '(s|es|ed|ing|er|ers|tion|ly|ment|ness)?' : '';
+      const suffixPattern = word.length >= 4 ? '(s|es|ed|ing|tion|ly|ment|ness)?' : '';
       const regex = new RegExp(`\\b${escapedWord}${suffixPattern}\\b`, 'gi');
       return regex.test(textLower);
     });

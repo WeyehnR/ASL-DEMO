@@ -9,6 +9,7 @@ export const PopupView = {
     element: null,
     videoElement: null,
     hideTimeout: null,
+    isPinned: false,
 
     /**
      * Create the popup DOM element (called once)
@@ -22,9 +23,11 @@ export const PopupView = {
             <div class="asl-popup-header">
                 <span class="asl-popup-title">ASL Sign</span>
                 <span class="asl-popup-lexical-class"></span>
+                <button class="asl-popup-close" title="Close">\u00D7</button>
             </div>
             <div class="asl-popup-video-container">
                 <video class="asl-popup-video" autoplay loop muted playsinline></video>
+                <button class="asl-popup-fullscreen" title="Fullscreen">\u26F6</button>
                 <div class="asl-popup-loading">Loading...</div>
                 <div class="asl-popup-no-video">No video available</div>
             </div>
@@ -102,9 +105,11 @@ export const PopupView = {
     },
 
     /**
-     * Hide the popup with delay
+     * Hide the popup with delay (skips if pinned)
      */
     hide() {
+        if (this.isPinned) return;
+
         this.hideTimeout = setTimeout(() => {
             if (this.element) {
                 this.element.style.display = 'none';
@@ -119,6 +124,43 @@ export const PopupView = {
      */
     cancelHide() {
         clearTimeout(this.hideTimeout);
+    },
+
+    /**
+     * Expand the popup (pin + enlarge + center on screen)
+     */
+    expand() {
+        if (!this.element) return;
+        this.isPinned = true;
+        this.element.classList.add('expanded');
+        // Clear absolute positioning so fixed centering takes over
+        this.element.style.top = '';
+        this.element.style.left = '';
+    },
+
+    /**
+     * Collapse the popup (unpin + shrink + hide)
+     */
+    collapse() {
+        if (!this.element) return;
+        this.isPinned = false;
+        this.element.classList.remove('expanded');
+        this.element.style.display = 'none';
+        this.videoElement.pause();
+        this.videoElement.src = '';
+    },
+
+    /**
+     * Enter fullscreen on the video element
+     */
+    enterFullscreen() {
+        if (!this.videoElement) return;
+
+        if (this.videoElement.requestFullscreen) {
+            this.videoElement.requestFullscreen();
+        } else if (this.videoElement.webkitRequestFullscreen) {
+            this.videoElement.webkitRequestFullscreen();
+        }
     },
 
     /**
