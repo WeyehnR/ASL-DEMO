@@ -5,6 +5,7 @@
 
 export const AppState = {
     currentWord: '',
+    currentEntry: null,  // ASL-LEX entry with meanings
     isLoading: false,
     hasVideo: false,
     matchCount: 0,
@@ -14,6 +15,13 @@ export const AppState = {
      */
     setCurrentWord(word) {
         this.currentWord = word;
+    },
+
+    /**
+     * Set the current entry data (includes meanings)
+     */
+    setCurrentEntry(entry) {
+        this.currentEntry = entry;
     },
 
     /**
@@ -46,6 +54,7 @@ export const AppState = {
      */
     reset() {
         this.currentWord = '';
+        this.currentEntry = null;
         this.isLoading = false;
         this.hasVideo = false;
         this.matchCount = 0;

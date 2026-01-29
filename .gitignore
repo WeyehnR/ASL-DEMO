@@ -1,4 +1,4 @@
-# WLASL dataset (large video files)
+# ASL-LEX dataset (large video files)
 archive/
 
 # Libraries (download separately)
@@ -10,6 +10,7 @@ node_modules/
 # OS files
 .DS_Store
 Thumbs.db
+nul
 
 # IDE
 .vscode/

@@ -19,8 +19,7 @@ export const CONFIG = {
 
     // Video paths
     video: {
-        basePath: '../archive/videos/',
-        extension:".mp4"
-
+        basePath: '../archive/asl_lex_videos/',
+        glossaryPath: '../archive/asl-lex-glossary.json'
     }
 };

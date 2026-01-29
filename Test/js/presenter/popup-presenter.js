@@ -52,6 +52,17 @@ export const PopupPresenter = {
      * Load video for current word
      */
     loadVideo(word) {
+        // Get entry with metadata (meanings, lexical class, etc.)
+        const entry = VideoData.getRandomEntryForWord(word);
+        AppState.setCurrentEntry(entry);
+
+        if (!entry) {
+            AppState.setHasVideo(false);
+            PopupView.render(AppState);
+            console.log(`No entry found for: ${word}`);
+            return;
+        }
+
         const videoPath = VideoData.getVideoPath(word);
 
         PopupView.loadVideo(
@@ -60,7 +71,7 @@ export const PopupPresenter = {
             () => {
                 AppState.setHasVideo(true);
                 PopupView.render(AppState);
-                console.log(`Loaded video for: ${word}`);
+                console.log(`Loaded video for: ${word} - ${entry.meanings}`);
             },
             // On error
             () => {

@@ -21,6 +21,7 @@ export const PopupView = {
         this.element.innerHTML = `
             <div class="asl-popup-header">
                 <span class="asl-popup-title">ASL Sign</span>
+                <span class="asl-popup-lexical-class"></span>
             </div>
             <div class="asl-popup-video-container">
                 <video class="asl-popup-video" autoplay loop muted playsinline></video>
@@ -28,6 +29,7 @@ export const PopupView = {
                 <div class="asl-popup-no-video">No video available</div>
             </div>
             <div class="asl-popup-word"></div>
+            <div class="asl-popup-meanings"></div>
         `;
 
         document.body.appendChild(this.element);
@@ -42,6 +44,18 @@ export const PopupView = {
 
         // Update word display
         this.element.querySelector('.asl-popup-word').textContent = state.currentWord;
+
+        // Update meanings and lexical class from entry
+        const meaningsEl = this.element.querySelector('.asl-popup-meanings');
+        const lexicalEl = this.element.querySelector('.asl-popup-lexical-class');
+
+        if (state.currentEntry) {
+            meaningsEl.textContent = state.currentEntry.meanings || '';
+            lexicalEl.textContent = state.currentEntry.lexicalClass || '';
+        } else {
+            meaningsEl.textContent = '';
+            lexicalEl.textContent = '';
+        }
 
         // Update state classes
         this.element.classList.remove('loading', 'has-video', 'no-video');

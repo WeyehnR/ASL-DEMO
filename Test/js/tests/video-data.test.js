@@ -7,11 +7,30 @@ import { VideoData } from '../model/video-data.js';
 import { CONFIG } from '../config.js';
 
 const VideoDataTests = {
-  // Mock glossary data (pre-built hashmap format)
+  // Mock glossary data (ASL-LEX format)
   mockGlossary: {
-    "book": ["07068", "07069", "07070"],
-    "hello": ["12345"],
-    "thank you": ["99001", "99002"]
+    "book": [
+      { entryId: "book", meanings: "book, novel, read", lexicalClass: "Noun", videoFile: "book.mp4" },
+      { entryId: "book_2", meanings: "book, reserve, reservation", lexicalClass: "Verb", videoFile: "book_2.mp4" }
+    ],
+    "hello": [
+      { entryId: "hello", meanings: "hello, hi, greetings", lexicalClass: "Interjection", videoFile: "hello.mp4" }
+    ],
+    "conflict": [
+      { entryId: "conflict", meanings: "conflict, dispute, argument", lexicalClass: "Noun", videoFile: "conflict.mp4" }
+    ],
+    "run": [
+      { entryId: "run", meanings: "run, jog, sprint", lexicalClass: "Verb", videoFile: "run.mp4" }
+    ],
+    "bra": [
+      { entryId: "bra", meanings: "bra, brassiere", lexicalClass: "Noun", videoFile: "bra.mp4" }
+    ],
+    "on": [
+      { entryId: "on", meanings: "on, upon", lexicalClass: "Preposition", videoFile: "on.mp4" }
+    ],
+    "die": [
+      { entryId: "die", meanings: "die, dead, death", lexicalClass: "Verb", videoFile: "die.mp4" }
+    ]
   },
 
   results: [],
@@ -29,92 +48,153 @@ const VideoDataTests = {
     VideoData.isLoaded = false;
   },
 
-  // Test: wordToVideos structure is correct
-  testWordToVideos() {
+  // Test: entry structure and lookup
+  testEntryLookup() {
     this.setup();
     VideoData.wordToVideos = this.mockGlossary;
 
-    // Check that all words exist as keys
-    const hasBook = "book" in VideoData.wordToVideos;
-    const hasHello = "hello" in VideoData.wordToVideos;
-    const hasThankYou = "thank you" in VideoData.wordToVideos;
+    this.assert("book" in VideoData.wordToVideos, "lookup: 'book' key exists");
+    this.assert("hello" in VideoData.wordToVideos, "lookup: 'hello' key exists");
 
-    this.assert(hasBook, "wordToVideos: 'book' key exists");
-    this.assert(hasHello, "wordToVideos: 'hello' key exists");
-    this.assert(hasThankYou, "wordToVideos: 'thank you' key exists");
-
-    // Check that values are arrays with correct video_ids
-    const bookVideos = VideoData.wordToVideos["book"];
-    this.assert(Array.isArray(bookVideos), "wordToVideos: 'book' value is array");
-    this.assert(bookVideos.length === 3, "wordToVideos: 'book' has 3 videos");
-    this.assert(bookVideos.includes("07068"), "wordToVideos: 'book' contains '07068'");
-
-    const helloVideos = VideoData.wordToVideos["hello"];
-    this.assert(helloVideos.length === 1, "wordToVideos: 'hello' has 1 video");
+    const bookEntries = VideoData.wordToVideos["book"];
+    this.assert(Array.isArray(bookEntries), "lookup: 'book' value is array");
+    this.assert(bookEntries.length === 2, "lookup: 'book' has 2 entries");
+    this.assert(bookEntries[0].meanings === "book, novel, read", "lookup: 'book' entry has meanings");
+    this.assert(bookEntries[0].lexicalClass === "Noun", "lookup: 'book' entry has lexicalClass");
   },
 
-  // Test: hasWord returns correct boolean
+  // Test: hasWord with stemming
   testHasWord() {
     this.setup();
     VideoData.wordToVideos = this.mockGlossary;
 
-    this.assert(VideoData.hasWord("book") === true, "hasWord: returns true for 'book'");
-    this.assert(VideoData.hasWord("hello") === true, "hasWord: returns true for 'hello'");
-    this.assert(VideoData.hasWord("notaword") === false, "hasWord: returns false for non-existent word");
-    this.assert(VideoData.hasWord("") === false, "hasWord: returns false for empty string");
+    this.assert(VideoData.hasWord("book") === true, "hasWord: exact 'book'");
+    this.assert(VideoData.hasWord("hello") === true, "hasWord: exact 'hello'");
+    this.assert(VideoData.hasWord("notaword") === false, "hasWord: false for non-existent");
+    this.assert(VideoData.hasWord("") === false, "hasWord: false for empty string");
   },
 
-  // Test: getRandomVideoForWord returns valid video_id
-  testGetRandomVideoForWord() {
+  // Test: getRandomEntryForWord returns entry with metadata
+  testGetRandomEntryForWord() {
     this.setup();
     VideoData.wordToVideos = this.mockGlossary;
 
-    const bookVideo = VideoData.getRandomVideoForWord("book");
-    const validBookIds = ["07068", "07069", "07070"];
-    this.assert(validBookIds.includes(bookVideo), "getRandomVideoForWord: returns valid video_id for 'book'");
+    const entry = VideoData.getRandomEntryForWord("book");
+    this.assert(entry !== null, "getRandomEntry: returns entry for 'book'");
+    this.assert(entry.entryId !== undefined, "getRandomEntry: entry has entryId");
+    this.assert(entry.meanings !== undefined, "getRandomEntry: entry has meanings");
+    this.assert(entry.videoFile !== undefined, "getRandomEntry: entry has videoFile");
 
-    const helloVideo = VideoData.getRandomVideoForWord("hello");
-    this.assert(helloVideo === "12345", "getRandomVideoForWord: returns '12345' for 'hello'");
-
-    // Test randomness - run multiple times and check we get different results sometimes
-    const results = new Set();
-    for (let i = 0; i < 20; i++) {
-      results.add(VideoData.getRandomVideoForWord("book"));
-    }
-    this.assert(results.size > 1, "getRandomVideoForWord: returns varied results (randomness check)");
+    const noEntry = VideoData.getRandomEntryForWord("notaword");
+    this.assert(noEntry === null, "getRandomEntry: null for non-existent");
   },
 
-  // Test: getVideoPath returns correctly formatted path
+  // Test: getVideoPath
   testGetVideoPath() {
     this.setup();
     VideoData.wordToVideos = this.mockGlossary;
 
     const path = VideoData.getVideoPath("book");
-
-    // Check path starts with base path from config
+    this.assert(path !== null, "getVideoPath: returns path for 'book'");
     this.assert(path.startsWith(CONFIG.video.basePath), "getVideoPath: starts with basePath");
+    this.assert(path.endsWith(".mp4"), "getVideoPath: ends with .mp4");
 
-    // Check path ends with extension from config
-    this.assert(path.endsWith(CONFIG.video.extension), "getVideoPath: ends with extension");
-
-    // Check path contains a valid video_id
-    const validBookIds = ["07068", "07069", "07070"];
-    const containsValidId = validBookIds.some(id => path.includes(id));
-    this.assert(containsValidId, "getVideoPath: contains valid video_id");
-
-    // Check non-existent word returns undefined
     const noPath = VideoData.getVideoPath("notaword");
-    this.assert(noPath === undefined, "getVideoPath: returns undefined for non-existent word");
+    this.assert(noPath === null, "getVideoPath: null for non-existent");
+  },
+
+  // Test: findBaseWord stemming
+  testFindBaseWord() {
+    this.setup();
+    VideoData.wordToVideos = this.mockGlossary;
+
+    // Exact matches
+    this.assert(VideoData.findBaseWord("conflict") === "conflict", "stem: exact 'conflict'");
+    this.assert(VideoData.findBaseWord("book") === "book", "stem: exact 'book'");
+
+    // Suffix stripping (4+ char words)
+    this.assert(VideoData.findBaseWord("conflicting") === "conflict", "stem: 'conflicting' -> 'conflict'");
+    this.assert(VideoData.findBaseWord("conflicts") === "conflict", "stem: 'conflicts' -> 'conflict'");
+    this.assert(VideoData.findBaseWord("conflicted") === "conflict", "stem: 'conflicted' -> 'conflict'");
+    this.assert(VideoData.findBaseWord("books") === "book", "stem: 'books' -> 'book'");
+
+    // Doubled consonant: "running" -> "run"
+    this.assert(VideoData.findBaseWord("running") === "run", "stem: 'running' -> 'run' (doubled consonant)");
+
+    // Non-existent words
+    this.assert(VideoData.findBaseWord("xyz") === null, "stem: null for non-existent");
+
+    // Case insensitivity
+    this.assert(VideoData.findBaseWord("CONFLICT") === "conflict", "stem: case insensitive 'CONFLICT'");
+    this.assert(VideoData.findBaseWord("Conflicting") === "conflict", "stem: case insensitive 'Conflicting'");
+  },
+
+  // Test: regex matching - short words (1-3 chars) exact only
+  testShortWordMatching() {
+    this.setup();
+    VideoData.wordToVideos = this.mockGlossary;
+
+    const suffixPattern = (word) =>
+      word.length >= 4 ? '(s|es|ed|ing|er|ers|tion|ly|ment|ness)?' : '';
+
+    const testMatch = (word, text) => {
+      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escaped}${suffixPattern(word)}\\b`, 'gi');
+      return regex.test(text);
+    };
+
+    // "on" should NOT match "only"
+    this.assert(!testMatch("on", "She only turned the light"), "match: 'on' does NOT match 'only'");
+    this.assert(testMatch("on", "She turned on the light"), "match: 'on' matches exact 'on'");
+
+    // "die" should NOT match "audience"
+    this.assert(!testMatch("die", "The audience applauded"), "match: 'die' does NOT match 'audience'");
+    this.assert(testMatch("die", "He will die"), "match: 'die' matches exact 'die'");
+
+    // "bra" should NOT match "Brazil"
+    this.assert(!testMatch("bra", "Brazil is beautiful"), "match: 'bra' does NOT match 'Brazil'");
+    this.assert(testMatch("bra", "She bought a bra"), "match: 'bra' matches exact 'bra'");
+  },
+
+  // Test: regex matching - long words (4+ chars) with suffixes
+  testLongWordMatching() {
+    this.setup();
+    VideoData.wordToVideos = this.mockGlossary;
+
+    const suffixPattern = (word) =>
+      word.length >= 4 ? '(s|es|ed|ing|er|ers|tion|ly|ment|ness)?' : '';
+
+    const testMatch = (word, text) => {
+      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escaped}${suffixPattern(word)}\\b`, 'gi');
+      return regex.test(text);
+    };
+
+    // "conflict" should match suffixed forms
+    this.assert(testMatch("conflict", "The conflict arose"), "match: 'conflict' exact");
+    this.assert(testMatch("conflict", "Conflicting reports"), "match: 'conflict' -> 'Conflicting'");
+    this.assert(testMatch("conflict", "Multiple conflicts"), "match: 'conflict' -> 'conflicts'");
+    this.assert(testMatch("conflict", "They conflicted"), "match: 'conflict' -> 'conflicted'");
+
+    // "conflict" should NOT match in hyphenated second part
+    this.assert(testMatch("conflict", "A conflict-free zone"), "match: 'conflict' in 'conflict-free'");
+
+    // "book" should match suffixed forms
+    this.assert(testMatch("book", "She booked a flight"), "match: 'book' -> 'booked'");
+    this.assert(testMatch("book", "Two books on the shelf"), "match: 'book' -> 'books'");
   },
 
   // Run all tests
   runAll() {
     this.results = [];
 
-    this.testWordToVideos();
+    this.testEntryLookup();
     this.testHasWord();
-    this.testGetRandomVideoForWord();
+    this.testGetRandomEntryForWord();
     this.testGetVideoPath();
+    this.testFindBaseWord();
+    this.testShortWordMatching();
+    this.testLongWordMatching();
 
     // Report results
     const passed = this.results.filter(r => r.passed).length;

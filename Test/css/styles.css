@@ -92,11 +92,153 @@ body {
     color: var(--result-text);
 }
 
+/* Match navigation */
+.result-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.result-position {
+    font-size: 13px;
+    min-width: 60px;
+    text-align: center;
+}
+
+.nav-btn {
+    padding: 4px 10px;
+    background: #555 !important;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.nav-btn:hover {
+    background: #666 !important;
+}
+
+/* Current match highlight */
+mark.current-match {
+    background: #ff9800;
+    outline: 2px solid #ff5722;
+    outline-offset: 1px;
+}
+
 /* Word Chips */
 #word-chips {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Search */
+.word-search-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+
+.word-search-input {
+    flex: 1;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 6px;
+    background: #444;
+    color: #fff;
+    font-size: 13px;
+    width: auto !important;
+}
+
+.word-search-input::placeholder {
+    color: #888;
+}
+
+.word-search-input:focus {
+    outline: 2px solid var(--btn-primary);
+}
+
+.word-count {
+    font-size: 11px;
+    color: #888;
+    white-space: nowrap;
+}
+
+/* Sections container */
+.word-sections {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Section */
+.word-section {
+    margin-bottom: 2px;
+}
+
+#word-chips .word-section-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 6px 8px;
+    background: #444 !important;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 13px;
+    text-align: left;
+}
+
+#word-chips .word-section-header:hover {
+    background: #555 !important;
+}
+
+.word-section-arrow {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+.word-section:not(.collapsed) .word-section-arrow {
+    transform: rotate(90deg);
+}
+
+.word-section-letter {
+    font-weight: 600;
+}
+
+.word-section-count {
+    color: #aaa;
+    font-size: 11px;
+    margin-left: auto;
+}
+
+.word-section-content {
+    padding: 6px 0 6px 4px;
+    overflow-x: hidden;
+}
+
+.word-section.collapsed .word-section-content {
+    display: none;
+}
+
+/* Flat chips (for search results) */
+.word-chips-flat {
+    padding: 4px 0;
+}
+
+.no-results {
+    color: #888;
+    font-size: 13px;
+    padding: 20px;
+    text-align: center;
 }
 
 .word-chip {
@@ -205,11 +347,30 @@ mark {
 }
 
 .asl-popup-word {
-    padding: 10px 12px;
+    padding: 8px 12px 4px;
     color: var(--popup-text);
     font-size: 16px;
     font-weight: 600;
     text-align: center;
     background: var(--popup-header);
     border-top: 1px solid var(--popup-border);
+}
+
+.asl-popup-meanings {
+    padding: 4px 12px 10px;
+    color: var(--popup-muted);
+    font-size: 12px;
+    text-align: center;
+    background: var(--popup-header);
+    font-style: italic;
+}
+
+.asl-popup-lexical-class {
+    color: var(--popup-muted);
+    font-size: 10px;
+    font-weight: normal;
+    margin-left: 8px;
+    padding: 2px 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 4px;
 }
