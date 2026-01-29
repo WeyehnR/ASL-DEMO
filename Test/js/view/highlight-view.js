@@ -15,7 +15,9 @@ export const HighlightView = {
     },
 
     /**
-     * Highlight all glossary words in a single pass using mark.js built-in array matching
+     * Highlight all glossary words in a single DOM pass using one combined regex.
+     * mark.js mark(array) loops internally per word, so we must use markRegExp
+     * with a single regex to avoid 2000+ separate DOM traversals.
      */
     highlightAll(words, onEachMatch, onComplete) {
         if (!this.container) {
@@ -24,8 +26,14 @@ export const HighlightView = {
 
         this.markInstance = new Mark(this.container);
 
-        this.markInstance.mark(words, {
-            accuracy: 'exactly',
+        // Escape each word for regex, sort longest first for correct alternation
+        const escaped = words
+            .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+            .sort((a, b) => b.length - a.length);
+
+        const regex = new RegExp(`\\b(?:${escaped.join('|')})\\b`, 'gi');
+
+        this.markInstance.markRegExp(regex, {
             each: (element) => {
                 element.style.cursor = 'pointer';
                 if (onEachMatch) onEachMatch(element);
