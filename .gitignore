@@ -19,5 +19,8 @@ nul
 # Claude Code
 .claude/
 
+# Personal docs
+ARCHITECTURE.md
+
 # Logs
 *.log

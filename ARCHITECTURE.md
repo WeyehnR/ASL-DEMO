@@ -194,3 +194,33 @@ flowchart LR
 - **Smart stemming**: Suffix stripping (ing, ed, tion, ly, etc.) with doubled-consonant handling maps inflected forms back to base glossary words.
 - **Short word protection**: Words 1-3 characters long match exactly only, preventing false positives like "on" matching "only".
 - **Pinned popup state**: Click pins the popup open so users can read definitions while scrolling; hover alone is transient with a 200ms hide delay.
+
+## Future Considerations
+
+### Decouple Presenters
+
+HighlightPresenter directly calls PopupPresenter (`showPopup`, `expandPopup`). Replace with an event-based approach so they communicate without knowing about each other. This makes each presenter independently testable and swappable (e.g., replace popup with a sidebar panel).
+
+### Pre-computed Stemming Map
+
+The manual suffix-stripping in `VideoData.findBaseWord()` misses irregular forms ("children" → "child", "ran" → "run") and can over-stem ("rating" → "rat"). Since the glossary is a fixed ~2000-word set, pre-compute a reverse lookup at build time (`{"running": "run", "children": "child", ...}`) for exact, fast matching with no false positives.
+
+### Accessibility
+
+- Add `role="button"` and `aria-label` on highlighted `<mark>` elements
+- Add `aria-live` region for the popup so screen readers announce content changes
+- Implement keyboard navigation: Tab into popup, Escape to close, arrow keys for match navigation
+
+### Testing Coverage
+
+Only `VideoData` has tests. Presenters contain the most critical logic (event coordination, state transitions, match navigation) and are untested. Since they're already decoupled from the DOM through the views, they can be tested by mocking the view objects.
+
+### Video Loading
+
+Every hover triggers a video load. Quick hovers across multiple words start and abort loads repeatedly. An LRU cache (5-10 entries) for loaded video blobs would make re-hovers instant and reduce network churn.
+
+### Browser Extension Readiness
+
+- Content script entry point that highlights existing page content instead of fetching/injecting an article
+- CSP handling for mark.js injection and inline styles
+- Scoped highlighting that doesn't conflict with site markup
