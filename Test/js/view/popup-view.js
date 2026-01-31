@@ -114,10 +114,23 @@ export const PopupView = {
     hide() {
         if (this.isPinned) return;
 
+        clearTimeout(this.hideTimeout);
         this.hideTimeout = setTimeout(() => {
             if (this.element) {
                 this.element.style.display = 'none';
-                this.videoElement.pause();
+                if (this.videoElement) {
+                    try {
+                        // Pause and reset playback so next hover is clean
+                        this.videoElement.pause();
+                        try { this.videoElement.currentTime = 0; } catch (e) { /* ignore if not allowed */ }
+
+                        // Remove src and unload to free decoder and avoid stale canplay events
+                        this.videoElement.removeAttribute('src');
+                        this.videoElement.load();
+                    } catch (e) {
+                        console.warn('Error resetting video on hide:', e);
+                    }
+                }
             }
         }, CONFIG.timing.hideDelay);
     },
@@ -149,23 +162,108 @@ export const PopupView = {
         this.isPinned = false;
         this.element.classList.remove('expanded');
         this.element.style.display = 'none';
-        this.videoElement.pause();
+        if (this.videoElement) {
+            try {
+                this.videoElement.pause();
+                try { this.videoElement.currentTime = 0; } catch (e) {}
+                this.videoElement.removeAttribute('src');
+                this.videoElement.load();
+            } catch (e) {
+                console.warn('Error resetting video on collapse:', e);
+            }
+        }
     },
 
     /**
      * Load video source
+     *
+     * Robust behavior:
+     * - stops current playback and clears prior handlers
+     * - sets src + load(), resets currentTime when possible
+     * - calls play() and catches promise rejections
+     * - calls onSuccess/onError appropriately
      */
     loadVideo(src, onSuccess, onError) {
-        this.videoElement.src = src || '';
+        const video = this.videoElement;
+        if (!video) {
+            if (onError) onError(new Error('No video element'));
+            return;
+        }
 
-        this.videoElement.oncanplay = () => {
-            this.videoElement.play();
-            if (onSuccess) onSuccess();
+        // Stop any current playback and remove previous handlers
+        video.pause();
+        // remove any attached handlers we used earlier
+        if (video._onCanPlayHandler) {
+            video.removeEventListener('canplay', video._onCanPlayHandler);
+            delete video._onCanPlayHandler;
+        }
+        if (video._onErrorHandler) {
+            video.removeEventListener('error', video._onErrorHandler);
+            delete video._onErrorHandler;
+        }
+
+        if (!src) {
+            // ensure clean state
+            video.removeAttribute('src');
+            try { video.load(); } catch (e) {}
+            if (onError) onError(new Error('No src'));
+            return;
+        }
+
+        // Handler functions
+        const onCanPlay = () => {
+            // ensure starting at 0
+            try { video.currentTime = 0; } catch (e) { /* ignore */ }
+
+            // Attempt to play and handle promise
+            const playPromise = video.play();
+            if (playPromise && playPromise.catch) {
+                playPromise.then(() => {
+                    if (onSuccess) onSuccess();
+                }).catch((err) => {
+                    console.warn('video.play() failed:', err);
+                    if (onError) onError(err);
+                });
+            } else {
+                if (onSuccess) onSuccess();
+            }
+
+            // cleanup
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('error', onErrorHandler);
+            delete video._onCanPlayHandler;
+            delete video._onErrorHandler;
         };
 
-        this.videoElement.onerror = () => {
-            if (onError) onError();
+        const onErrorHandler = (ev) => {
+            console.warn('video element error', ev);
+            if (onError) onError(ev);
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('error', onErrorHandler);
+            delete video._onCanPlayHandler;
+            delete video._onErrorHandler;
         };
+
+        // store refs for later removal
+        video._onCanPlayHandler = onCanPlay;
+        video._onErrorHandler = onErrorHandler;
+        video.addEventListener('canplay', onCanPlay);
+        video.addEventListener('error', onErrorHandler);
+
+        // Set src and load; use try/catch for older browsers
+        try {
+            video.src = src;
+            // call load to force the browser to reset internal decoder state
+            video.load();
+        } catch (e) {
+            console.warn('Error setting video src:', e);
+            // cleanup handlers
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('error', onErrorHandler);
+            delete video._onCanPlayHandler;
+            delete video._onErrorHandler;
+            if (onError) onError(e);
+        }
     },
 
     /**

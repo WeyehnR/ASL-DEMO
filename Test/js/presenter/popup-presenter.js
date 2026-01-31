@@ -53,7 +53,7 @@ export const PopupPresenter = {
     if (AppState.currentWord === word && AppState.hasVideo) {
       PopupView.position(targetElement);
       PopupView.show();
-
+      return;
     }
 
     // Update model
@@ -71,8 +71,14 @@ export const PopupPresenter = {
 
   /**
    * Hide the popup (respects pinned state)
+   *
+   * Ensure model knows there is no video available after hiding, otherwise
+   * showPopup's early-return may re-show a popup with an emptied <video>.
    */
   hidePopup() {
+    // Mark model as no longer having a live video because hide()/collapse()
+    // will remove the element's src and unload the decoder.
+    AppState.setHasVideo(false);
     PopupView.hide();
   },
 
@@ -99,6 +105,9 @@ export const PopupPresenter = {
    * Collapse the expanded popup
    */
   collapsePopup() {
+    // When collapsing we also remove the video src in the view, so reflect that
+    // in the model to avoid the stale early-return branch.
+    AppState.setHasVideo(false);
     PopupView.collapse();
   },
 
