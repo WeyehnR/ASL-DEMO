@@ -16,15 +16,20 @@ export const HighlightPresenter = {
 
     /**
      * Highlight all words from the glossary in a single pass
+     * Includes base words + all inflected forms from the inflection map
      */
     highlightAllGlossaryWords() {
-        const words = Object.keys(VideoData.wordToVideos);
+        const baseWords = Object.keys(VideoData.wordToVideos);
+        const inflectedForms = Object.keys(VideoData.inflectionMap);
+        const allWords = baseWords.concat(inflectedForms);
 
         HighlightView.highlightAll(
-            words,
+            allWords,
             (element) => {
+                const baseWord = VideoData.findBaseWord(element.textContent) || element.textContent;
+
                 element.addEventListener('mouseenter', () => {
-                    PopupPresenter.showPopup(element, element.textContent);
+                    PopupPresenter.showPopup(element, baseWord);
                 });
 
                 element.addEventListener('mouseleave', () => {
@@ -32,7 +37,7 @@ export const HighlightPresenter = {
                 });
 
                 element.addEventListener('click', () => {
-                    PopupPresenter.expandPopup(element, element.textContent);
+                    PopupPresenter.expandPopup(element, baseWord);
                 });
             }
         );
@@ -46,15 +51,19 @@ export const HighlightPresenter = {
         this.matches = [];
         this.currentMatchIndex = -1;
 
+        const allForms = VideoData.getAllForms(word);
+
         HighlightView.highlight(
-            word,
+            allForms,
             // For each match found
             (element) => {
                 // Store all matches for navigation
                 this.matches.push(element);
 
+                const baseWord = VideoData.findBaseWord(element.textContent) || element.textContent;
+
                 element.addEventListener('mouseenter', () => {
-                    PopupPresenter.showPopup(element, element.textContent);
+                    PopupPresenter.showPopup(element, baseWord);
                 });
 
                 element.addEventListener('mouseleave', () => {
@@ -62,7 +71,7 @@ export const HighlightPresenter = {
                 });
 
                 element.addEventListener('click', () => {
-                    PopupPresenter.expandPopup(element, element.textContent);
+                    PopupPresenter.expandPopup(element, baseWord);
                 });
             },
             // When all highlighting is done

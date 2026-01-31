@@ -64,7 +64,8 @@ sequenceDiagram
 
     VP->>VD: await init()
     VD->>VD: Fetch asl-lex-glossary.json
-    VD-->>VP: ~2000 words loaded
+    VD->>VD: Extract __inflectionMap, build reverseMap
+    VD-->>VP: ~2000 words + ~5600 inflections loaded
 
     VP->>PP: init()
     PP->>PP: Create popup DOM + bind events
@@ -73,8 +74,8 @@ sequenceDiagram
     VP->>VP: Fetch asl_article.html → inject into DOM
 
     VP->>HP: highlightAllGlossaryWords()
-    HP->>VD: getAllWords() → ~2000 words
-    HP->>HV: highlightAll(words)
+    HP->>VD: base words + inflection map keys
+    HP->>HV: highlightAll(~7600 words)
     HV->>HV: Build single regex: \b(word1|word2|...)\b
     HV->>HV: mark.js ONE DOM pass
     HV-->>HP: Each match → attach hover/click handlers
@@ -96,15 +97,14 @@ sequenceDiagram
     participant PV as PopupView
 
     User->>Mark: mouseenter "conflicting"
-    Mark->>PP: showPopup(element, "conflicting")
-    PP->>AS: setCurrentWord("conflicting")
+    Note over Mark: findBaseWord("conflicting") → "conflict"
+    Mark->>PP: showPopup(element, "conflict")
+    PP->>AS: setCurrentWord("conflict")
     PP->>AS: setLoading(true)
     PP->>PV: render(state) → show loading spinner
     PP->>PV: position(element) → place near word
     PP->>PV: show()
 
-    PP->>VD: findBaseWord("conflicting")
-    VD-->>PP: "conflict"
     PP->>VD: getRandomEntryForWord("conflict")
     VD-->>PP: {entryId, meanings, lexicalClass, videoFile}
 
@@ -135,8 +135,10 @@ sequenceDiagram
     alt Click Word Chip
         User->>WC: Click "conflict" chip
         WC->>HP: highlightWord("conflict")
-        HP->>HV: highlight("conflict")
-        HV->>HV: Regex: \bconflict(s|ed|ing|tion|...)?\b
+        HP->>VD: getAllForms("conflict")
+        VD-->>HP: ["conflict", "conflicts", "conflicted", "conflicting"]
+        HP->>HV: highlight(allForms)
+        HV->>HV: Regex from explicit word list
         HV->>HV: mark.js DOM pass
         HV-->>HP: matches[] populated
         HP->>HP: goToMatch(0)
@@ -180,7 +182,7 @@ graph LR
 
 ```mermaid
 flowchart LR
-    A["ASL-LEX CSV<br/>signdata-11-5-20.csv"] -->|build-asl-lex-glossary.js| B["asl-lex-glossary.json<br/>~2000 words"]
+    A["ASL-LEX CSV<br/>signdata-11-5-20.csv"] -->|build-asl-lex-glossary.js| B["asl-lex-glossary.json<br/>~2000 words + inflection map"]
     A -->|download-asl-lex-videos.js| C["MP4 video files<br/>via yt-dlp"]
     B --> D["VideoData.init()"]
     C --> E["PopupView.loadVideo()"]
@@ -191,8 +193,8 @@ flowchart LR
 ## Key Design Decisions
 
 - **Single DOM pass**: All ~2000 glossary words are combined into one regex and matched in a single `mark.js` traversal, avoiding per-word loops that would freeze the page.
-- **Smart stemming**: Suffix stripping (ing, ed, tion, ly, etc.) with doubled-consonant handling maps inflected forms back to base glossary words.
-- **Short word protection**: Words 1-3 characters long match exactly only, preventing false positives like "on" matching "only".
+- **Pre-computed inflection map**: The build script generates an `__inflectionMap` (inflected form → base word) embedded in the glossary JSON. At runtime, `findBaseWord()` is two hash lookups — no suffix stripping, no false positives. Handles regular inflections, consonant doubling, ie→ying, irregular forms (ran→run, children→child), and deliberately excludes agent nouns (-er/-ers) since those are different ASL signs.
+- **Base word display**: Popup always shows the dictionary form (e.g., "accept" not "accepted") since ASL signs don't inflect for tense — the same sign covers all English forms.
 - **Pinned popup state**: Click pins the popup open so users can read definitions while scrolling; hover alone is transient with a 200ms hide delay.
 
 ## Future Considerations
@@ -201,9 +203,9 @@ flowchart LR
 
 HighlightPresenter directly calls PopupPresenter (`showPopup`, `expandPopup`). Replace with an event-based approach so they communicate without knowing about each other. This makes each presenter independently testable and swappable (e.g., replace popup with a sidebar panel).
 
-### Pre-computed Stemming Map
+### ~~Pre-computed Stemming Map~~ (Done)
 
-The manual suffix-stripping in `VideoData.findBaseWord()` misses irregular forms ("children" → "child", "ran" → "run") and can over-stem ("rating" → "rat"). Since the glossary is a fixed ~2000-word set, pre-compute a reverse lookup at build time (`{"running": "run", "children": "child", ...}`) for exact, fast matching with no false positives.
+Implemented. The build script (`build-asl-lex-glossary.js`) now generates an `__inflectionMap` with ~5,600 entries covering regular inflections (noun plurals, verb conjugations, adjective forms), ~80 irregular forms, and consonant doubling. Agent nouns (-er/-ers) are excluded. `VideoData.findBaseWord()` is now a simple map lookup. `getWordsInText()` tokenizes and does O(1) lookups per word instead of scanning 2000+ regexes.
 
 ### Accessibility
 
@@ -211,9 +213,96 @@ The manual suffix-stripping in `VideoData.findBaseWord()` misses irregular forms
 - Add `aria-live` region for the popup so screen readers announce content changes
 - Implement keyboard navigation: Tab into popup, Escape to close, arrow keys for match navigation
 
-### Testing Coverage
+### Testing Strategy
 
-Only `VideoData` has tests. Presenters contain the most critical logic (event coordination, state transitions, match navigation) and are untested. Since they're already decoupled from the DOM through the views, they can be tested by mocking the view objects.
+#### Current State
+
+Only `VideoData` has tests (45 assertions in `video-data.test.js`, custom runner, runs in Node.js). All presenters and views are untested. That's roughly 4% coverage by module count.
+
+#### Testing Layers
+
+The MVP architecture naturally maps to three testing layers, each serving a different purpose:
+
+**1. Unit Tests — Model Layer (Node.js, no DOM)**
+
+Pure data logic. No browser needed. Fast to run, easy to write.
+
+| Module | What to test | Priority |
+|--------|-------------|----------|
+| `VideoData` | `findBaseWord`, `getAllForms`, `getWordsInText`, inflection map lookup, collision handling | ✅ Done |
+| `AppState` | Setter/getter correctness, `reset()` clears all fields, state never leaks between calls | Low — trivial setters, but useful as a regression guard |
+
+**2. Integration Tests — Presenter Layer (Node.js with mocked Views)**
+
+This is the highest-value untested layer. Presenters contain all the coordination logic — state transitions, event sequencing, error handling — but they don't touch the DOM directly. Mock the views and test the presenter logic in isolation.
+
+| Module | Critical logic to test |
+|--------|----------------------|
+| `HighlightPresenter` | Match navigation wraps around correctly (index 0 → N-1 → 0). `highlightWord()` resets previous matches before starting new ones. `highlightAllGlossaryWords()` passes both base words and inflected forms. `clearHighlights()` resets state and delegates to view. |
+| `PopupPresenter` | Pin/unpin toggle: click same word twice collapses. Hover while pinned does not override pinned popup. 200ms hide delay cancels if mouse re-enters. Video load error updates state to `hasVideo: false`. `showPopup` resolves base word before loading entry. |
+| `AppPresenter` | Init sequence: VideoData → PopupPresenter → loadArticle → highlight → word chips. `handleClear()` delegates to HighlightPresenter. |
+
+**How to mock**: Each view is a plain object with methods. Create stub objects that record calls:
+
+```js
+const mockHighlightView = {
+    highlightAllCalls: [],
+    highlightAll(words, onEach) {
+        this.highlightAllCalls.push({ words });
+        // simulate matches by calling onEach with fake elements
+    },
+    clear(cb) { cb(); }
+};
+```
+
+This layer catches the bugs that matter most — wrong navigation state, popup stuck open, events firing in the wrong order — without needing a browser.
+
+**3. E2E Tests — Full Browser (Playwright)**
+
+Real browser, real DOM, real mark.js. This is where you verify that the pieces actually work together and is essential for browser extension readiness since extensions run on unpredictable third-party pages.
+
+| Flow | What to verify |
+|------|---------------|
+| **Page load** | Article loads, `<mark>` elements appear in DOM, sidebar populates with word chips |
+| **Hover → popup** | Hover on highlighted word → popup appears with video, correct base word displayed (not inflected form), popup disappears after mouse leaves |
+| **Click → pin** | Click highlighted word → popup pins in center, click again → popup collapses |
+| **Word chip → navigate** | Click chip → matches highlighted, "1 of N" counter shown, prev/next buttons cycle through matches, scroll position changes |
+| **Search** | Type in search box → chips filter, clear search → all chips return |
+| **Inflections** | Hover on "accepted" → popup shows "accept", hover on "running" → popup shows "run" |
+| **Edge cases** | Short words don't false-match inside longer words ("art" doesn't match inside "article"). Words at start/end of sentences still highlight. |
+
+**Why Playwright over Cypress**: Playwright supports browser extension testing natively via `chromium.launchPersistentContext()` with the `--load-extension` flag. When this becomes an extension, the same E2E suite tests it on real web pages.
+
+#### What NOT to Unit Test
+
+**Views** (`HighlightView`, `PopupView`, `ResultView`, `WordChipsView`) are thin DOM wrappers. Testing them in isolation requires JSDOM or a real browser, and the tests end up mirroring the implementation ("did you call `classList.add`?"). They get covered naturally by E2E tests. The exception is `PopupView.position()` — the positioning math (above/below target, minimum margins) could be extracted into a pure function and unit tested.
+
+#### Test Pyramid for This Project
+
+```
+        /  E2E  \          ← 5-10 tests, Playwright, slow but high confidence
+       /----------\
+      / Integration \       ← 20-30 tests, mocked views, catches coordination bugs
+     /----------------\
+    /    Unit (Models)   \  ← 50+ assertions, Node.js, fast, catches data bugs
+   /----------------------\
+```
+
+#### Tooling Recommendations
+
+| Tool | Purpose | Why |
+|------|---------|-----|
+| **Vitest** | Test runner + assertions | Fast, ES module native (matches current codebase), built-in mocking. Jest works too but requires more config for ES modules. |
+| **Playwright** | E2E browser tests | Extension testing support, multi-browser, good async handling |
+| **c8 / v8 coverage** | Code coverage | Built into Vitest, shows which presenter branches are untested |
+
+#### Priority Order
+
+1. **Presenter integration tests** — highest value, catches the most dangerous bugs (stuck states, wrong navigation, popup not closing)
+2. **E2E happy paths** — verifies the full stack works in a real browser
+3. **AppState unit tests** — quick to write, low risk
+4. **E2E edge cases** — inflections, short words, rapid hover
+5. **Build script tests** — verify inflection generation rules produce expected output
 
 ### Video Loading
 

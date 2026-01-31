@@ -1,45 +1,45 @@
 /**
  * Video Data Model
  * Handles ASL-LEX dataset lookup with definitions
+ * Uses pre-computed inflection map for word matching (no runtime suffix stripping)
  */
 
 import { CONFIG } from "../config.js";
 
 export const VideoData = {
   wordToVideos: {},
+  inflectionMap: {},   // inflected form → base word
+  reverseMap: {},      // base word → [inflected forms]
   isLoaded: false,
 
-  // Common suffixes to strip when looking up words
-  // Order matters - try longer suffixes first
-  suffixes: ['ing', 'tion', 'sion', 'ment', 'ness', 'able', 'ible', 'ful', 'less', 'ous', 'ive', 'ly', 'ed', 'es', 's'],
-
-  // Try to find the base/stem word in glossary
+  // Find the base/stem word in glossary via inflection map lookup
   findBaseWord(word) {
     const normalized = word.toLowerCase();
 
-    // First try exact match
+    // Exact match in glossary
     if (this.wordToVideos[normalized]) {
       return normalized;
     }
 
-    // Try removing common suffixes
-    for (const suffix of this.suffixes) {
-      if (normalized.endsWith(suffix) && normalized.length > suffix.length + 2) {
-        const stem = normalized.slice(0, -suffix.length);
-        if (this.wordToVideos[stem]) {
-          return stem;
-        }
-        // Handle doubling: "running" -> "run" (remove extra consonant)
-        if (stem.length > 2 && stem[stem.length - 1] === stem[stem.length - 2]) {
-          const dedoubled = stem.slice(0, -1);
-          if (this.wordToVideos[dedoubled]) {
-            return dedoubled;
-          }
-        }
-      }
+    // Inflection map lookup
+    const base = this.inflectionMap[normalized];
+    if (base && this.wordToVideos[base]) {
+      return base;
     }
 
     return null;
+  },
+
+  // Get all forms (base + inflections) for a word
+  getAllForms(word) {
+    const baseWord = this.findBaseWord(word);
+    if (!baseWord) return [];
+
+    const forms = [baseWord];
+    if (this.reverseMap[baseWord]) {
+      forms.push(...this.reverseMap[baseWord]);
+    }
+    return forms;
   },
 
   // Load ASL-LEX glossary
@@ -49,7 +49,23 @@ export const VideoData = {
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
-      this.wordToVideos = await response.json();
+      const data = await response.json();
+
+      // Extract inflection map, then remove it from word entries
+      this.inflectionMap = data.__inflectionMap || {};
+      delete data.__inflectionMap;
+
+      this.wordToVideos = data;
+
+      // Build reverse map: base word → [inflected forms]
+      this.reverseMap = {};
+      for (const [inflected, base] of Object.entries(this.inflectionMap)) {
+        if (!this.reverseMap[base]) {
+          this.reverseMap[base] = [];
+        }
+        this.reverseMap[base].push(inflected);
+      }
+
       this.isLoaded = true;
     } catch (error) {
       console.error("Failed to fetch glossary: ", error);
@@ -58,30 +74,76 @@ export const VideoData = {
 
   // Get video path for a word
   getVideoPath(word) {
-    const entry = this.getRandomEntryForWord(word);
+    const entry = this.getEntryForWord(word);
     if (entry) {
       return CONFIG.video.basePath + entry.videoFile;
     }
     return null;
   },
 
-  // Get a random entry (with all metadata) for a word
-  // Tries exact match first, then stems the word
-  getRandomEntryForWord(word) {
+  // Get entry (with all metadata) for a word
+  // Tries exact match first, then uses inflection map
+  getEntryForWord(word) {
     const baseWord = this.findBaseWord(word);
     if (!baseWord) {
       return null;
     }
     const entries = this.wordToVideos[baseWord];
-    const randomIndex = Math.floor(Math.random() * entries.length);
-    return entries[randomIndex];
+    return entries[0];
   },
 
   // Get all entries for a word (for showing variants)
-  // Uses stemming to find base word
   getAllEntriesForWord(word) {
     const baseWord = this.findBaseWord(word);
     return baseWord ? this.wordToVideos[baseWord] : [];
+  },
+
+  // Pick the best variant for a word based on nearby context words.
+  // Scores each variant by how well its lexical class and semantic field
+  // match the surrounding highlighted words.
+  //   +1 per neighbor with matching lexicalClass
+  //   +2 per neighbor with matching semanticField (rarer, stronger signal)
+  // Returns the index of the best-scoring variant (0 if no signal).
+  disambiguate(entries, nearbyBaseWords) {
+    if (entries.length <= 1) return 0;
+
+    // Collect lexical classes and semantic fields of neighbors
+    const neighborClasses = [];
+    const neighborFields = [];
+
+    for (const word of nearbyBaseWords) {
+      const entry = this.wordToVideos[word]?.[0];
+      if (!entry) continue;
+      if (entry.lexicalClass) neighborClasses.push(entry.lexicalClass);
+      const field = entry.semanticField;
+      if (field && field !== 'None' && field !== '-') neighborFields.push(field);
+    }
+
+    let bestIndex = 0;
+    let bestScore = -1;
+
+    for (let i = 0; i < entries.length; i++) {
+      let score = 0;
+      const e = entries[i];
+
+      for (const nc of neighborClasses) {
+        if (nc === e.lexicalClass) score += 1;
+      }
+
+      const field = e.semanticField;
+      if (field && field !== 'None' && field !== '-') {
+        for (const nf of neighborFields) {
+          if (nf === field) score += 2;
+        }
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+
+    return bestIndex;
   },
 
   // Get specific entry by index
@@ -93,7 +155,7 @@ export const VideoData = {
     return null;
   },
 
-  // Check if word exists in glossary (with stemming)
+  // Check if word exists in glossary (with inflection map)
   hasWord(word) {
     return this.findBaseWord(word) !== null;
   },
@@ -104,17 +166,25 @@ export const VideoData = {
     return entries.length;
   },
 
-  // Find all glossary words in a text
-  // Uses same matching logic as highlighter (word + common suffixes)
-  // Short words (1-3 chars) get exact match only to avoid false positives
+  // Find all glossary words that appear in a text
+  // Tokenizes text and does O(1) lookups against glossary + inflection map
   getWordsInText(text) {
-    const textLower = text.toLowerCase();
+    const textWords = new Set(text.toLowerCase().match(/\b[a-z]+\b/g) || []);
+    const matchedBaseWords = new Set();
 
-    return Object.keys(this.wordToVideos).filter((word) => {
-      const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const suffixPattern = word.length >= 4 ? '(s|es|ed|ing|tion|ly|ment|ness)?' : '';
-      const regex = new RegExp(`\\b${escapedWord}${suffixPattern}\\b`, 'gi');
-      return regex.test(textLower);
-    });
+    for (const textWord of textWords) {
+      // Direct glossary match
+      if (this.wordToVideos[textWord]) {
+        matchedBaseWords.add(textWord);
+        continue;
+      }
+      // Inflection map match
+      const base = this.inflectionMap[textWord];
+      if (base && this.wordToVideos[base]) {
+        matchedBaseWords.add(base);
+      }
+    }
+
+    return [...matchedBaseWords];
   }
 };

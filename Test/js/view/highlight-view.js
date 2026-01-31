@@ -45,9 +45,12 @@ export const HighlightView = {
     },
 
     /**
-     * Highlight a word and call back for each match
+     * Highlight all forms of a word, call back for each match.
+     * @param {string[]} allForms - All forms to highlight (base + inflections)
+     * @param {Function} onEachMatch - Callback for each highlighted element
+     * @param {Function} onComplete - Callback when done, receives match count
      */
-    highlight(word, onEachMatch, onComplete) {
+    highlight(allForms, onEachMatch, onComplete) {
         if (!this.container) {
             this.container = document.getElementById('article-container') || document.body;
         }
@@ -57,12 +60,11 @@ export const HighlightView = {
         // Clear previous highlights first
         this.markInstance.unmark({
             done: () => {
-                // Match word + common English suffixes for longer words (4+ chars)
-                // Short words (1-3 chars) get exact match only to avoid false positives
-                // e.g., "conflict" matches "conflicting" but "on" does NOT match "only"
-                const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const suffixPattern = word.length >= 4 ? '(s|es|ed|ing|tion|ly|ment|ness)?' : '';
-                const regex = new RegExp(`\\b${escapedWord}${suffixPattern}\\b`, 'gi');
+                const escaped = allForms
+                    .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+                    .sort((a, b) => b.length - a.length);
+
+                const regex = new RegExp(`\\b(?:${escaped.join('|')})\\b`, 'gi');
 
                 this.markInstance.markRegExp(regex, {
                     each: (element) => {

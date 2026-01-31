@@ -36,6 +36,26 @@ const VideoDataTests = {
     ]
   },
 
+  // Mock inflection map (simulates build script output)
+  mockInflectionMap: {
+    "books": "book",
+    "booked": "book",
+    "booking": "book",
+    "conflicts": "conflict",
+    "conflicted": "conflict",
+    "conflicting": "conflict",
+    "runs": "run",
+    "running": "run",
+    "ran": "run",
+    "signs": "sign",
+    "signed": "sign",
+    "signing": "sign",
+    "dies": "die",
+    "died": "die",
+    "dying": "die",
+    "bras": "bra",
+  },
+
   results: [],
 
   // Test helper
@@ -48,13 +68,26 @@ const VideoDataTests = {
   // Reset VideoData state before tests
   setup() {
     VideoData.wordToVideos = {};
+    VideoData.inflectionMap = {};
+    VideoData.reverseMap = {};
     VideoData.isLoaded = false;
+  },
+
+  // Setup with mock data including inflection map
+  setupWithData() {
+    VideoData.wordToVideos = this.mockGlossary;
+    VideoData.inflectionMap = this.mockInflectionMap;
+    // Build reverse map
+    VideoData.reverseMap = {};
+    for (const [inflected, base] of Object.entries(this.mockInflectionMap)) {
+      if (!VideoData.reverseMap[base]) VideoData.reverseMap[base] = [];
+      VideoData.reverseMap[base].push(inflected);
+    }
   },
 
   // Test: entry structure and lookup
   testEntryLookup() {
-    this.setup();
-    VideoData.wordToVideos = this.mockGlossary;
+    this.setupWithData();
 
     this.assert("book" in VideoData.wordToVideos, "lookup: 'book' key exists");
     this.assert("hello" in VideoData.wordToVideos, "lookup: 'hello' key exists");
@@ -66,36 +99,35 @@ const VideoDataTests = {
     this.assert(bookEntries[0].lexicalClass === "Noun", "lookup: 'book' entry has lexicalClass");
   },
 
-  // Test: hasWord with stemming
+  // Test: hasWord with inflection map
   testHasWord() {
-    this.setup();
-    VideoData.wordToVideos = this.mockGlossary;
+    this.setupWithData();
 
     this.assert(VideoData.hasWord("book") === true, "hasWord: exact 'book'");
     this.assert(VideoData.hasWord("hello") === true, "hasWord: exact 'hello'");
+    this.assert(VideoData.hasWord("books") === true, "hasWord: inflection 'books'");
+    this.assert(VideoData.hasWord("running") === true, "hasWord: inflection 'running'");
     this.assert(VideoData.hasWord("notaword") === false, "hasWord: false for non-existent");
     this.assert(VideoData.hasWord("") === false, "hasWord: false for empty string");
   },
 
-  // Test: getRandomEntryForWord returns entry with metadata
-  testGetRandomEntryForWord() {
-    this.setup();
-    VideoData.wordToVideos = this.mockGlossary;
+  // Test: getEntryForWord returns entry with metadata
+  testGetEntryForWord() {
+    this.setupWithData();
 
-    const entry = VideoData.getRandomEntryForWord("book");
-    this.assert(entry !== null, "getRandomEntry: returns entry for 'book'");
-    this.assert(entry.entryId !== undefined, "getRandomEntry: entry has entryId");
-    this.assert(entry.meanings !== undefined, "getRandomEntry: entry has meanings");
-    this.assert(entry.videoFile !== undefined, "getRandomEntry: entry has videoFile");
+    const entry = VideoData.getEntryForWord("book");
+    this.assert(entry !== null, "getEntry: returns entry for 'book'");
+    this.assert(entry.entryId !== undefined, "getEntry: entry has entryId");
+    this.assert(entry.meanings !== undefined, "getEntry: entry has meanings");
+    this.assert(entry.videoFile !== undefined, "getEntry: entry has videoFile");
 
-    const noEntry = VideoData.getRandomEntryForWord("notaword");
-    this.assert(noEntry === null, "getRandomEntry: null for non-existent");
+    const noEntry = VideoData.getEntryForWord("notaword");
+    this.assert(noEntry === null, "getEntry: null for non-existent");
   },
 
   // Test: getVideoPath
   testGetVideoPath() {
-    this.setup();
-    VideoData.wordToVideos = this.mockGlossary;
+    this.setupWithData();
 
     const path = VideoData.getVideoPath("book");
     this.assert(path !== null, "getVideoPath: returns path for 'book'");
@@ -106,108 +138,76 @@ const VideoDataTests = {
     this.assert(noPath === null, "getVideoPath: null for non-existent");
   },
 
-  // Test: findBaseWord stemming
+  // Test: findBaseWord via inflection map
   testFindBaseWord() {
-    this.setup();
-    VideoData.wordToVideos = this.mockGlossary;
+    this.setupWithData();
 
     // Exact matches
     this.assert(VideoData.findBaseWord("conflict") === "conflict", "stem: exact 'conflict'");
     this.assert(VideoData.findBaseWord("book") === "book", "stem: exact 'book'");
 
-    // Suffix stripping (4+ char words)
+    // Inflection map lookups
     this.assert(VideoData.findBaseWord("conflicting") === "conflict", "stem: 'conflicting' -> 'conflict'");
     this.assert(VideoData.findBaseWord("conflicts") === "conflict", "stem: 'conflicts' -> 'conflict'");
     this.assert(VideoData.findBaseWord("conflicted") === "conflict", "stem: 'conflicted' -> 'conflict'");
     this.assert(VideoData.findBaseWord("books") === "book", "stem: 'books' -> 'book'");
+    this.assert(VideoData.findBaseWord("booked") === "book", "stem: 'booked' -> 'book'");
+    this.assert(VideoData.findBaseWord("booking") === "book", "stem: 'booking' -> 'book'");
 
-    // Doubled consonant: "running" -> "run"
-    this.assert(VideoData.findBaseWord("running") === "run", "stem: 'running' -> 'run' (doubled consonant)");
+    // Doubled consonant via inflection map
+    this.assert(VideoData.findBaseWord("running") === "run", "stem: 'running' -> 'run' (pre-computed)");
+
+    // Irregular form
+    this.assert(VideoData.findBaseWord("ran") === "run", "stem: 'ran' -> 'run' (irregular)");
+
+    // Verb forms from noun-classified words (sign is Noun in ASL-LEX)
+    this.assert(VideoData.findBaseWord("signed") === "sign", "stem: 'signed' -> 'sign'");
+    this.assert(VideoData.findBaseWord("signing") === "sign", "stem: 'signing' -> 'sign'");
+
+    // ie → ying special case
+    this.assert(VideoData.findBaseWord("dying") === "die", "stem: 'dying' -> 'die' (ie→ying)");
+    this.assert(VideoData.findBaseWord("died") === "die", "stem: 'died' -> 'die'");
 
     // Non-existent words
     this.assert(VideoData.findBaseWord("xyz") === null, "stem: null for non-existent");
+
+    // Agent nouns should NOT match (not in inflection map)
+    this.assert(VideoData.findBaseWord("signer") === null, "stem: 'signer' does NOT map (agent noun)");
+    this.assert(VideoData.findBaseWord("signers") === null, "stem: 'signers' does NOT map (agent noun)");
+    this.assert(VideoData.findBaseWord("runner") === null, "stem: 'runner' does NOT map (agent noun)");
 
     // Case insensitivity
     this.assert(VideoData.findBaseWord("CONFLICT") === "conflict", "stem: case insensitive 'CONFLICT'");
     this.assert(VideoData.findBaseWord("Conflicting") === "conflict", "stem: case insensitive 'Conflicting'");
   },
 
-  // Test: regex matching - short words (1-3 chars) exact only
-  testShortWordMatching() {
-    this.setup();
-    VideoData.wordToVideos = this.mockGlossary;
+  // Test: getAllForms returns base + inflections
+  testGetAllForms() {
+    this.setupWithData();
 
-    const suffixPattern = (word) =>
-      word.length >= 4 ? '(s|es|ed|ing|tion|ly|ment|ness)?' : '';
+    const bookForms = VideoData.getAllForms("book");
+    this.assert(bookForms.includes("book"), "getAllForms: includes base 'book'");
+    this.assert(bookForms.includes("books"), "getAllForms: includes 'books'");
+    this.assert(bookForms.includes("booked"), "getAllForms: includes 'booked'");
+    this.assert(bookForms.includes("booking"), "getAllForms: includes 'booking'");
+    this.assert(!bookForms.includes("booker"), "getAllForms: does NOT include 'booker'");
 
-    const testMatch = (word, text) => {
-      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`\\b${escaped}${suffixPattern(word)}\\b`, 'gi');
-      return regex.test(text);
-    };
+    // Works when called with an inflected form too
+    const runForms = VideoData.getAllForms("running");
+    this.assert(runForms.includes("run"), "getAllForms: 'running' returns base 'run'");
+    this.assert(runForms.includes("running"), "getAllForms: 'running' includes 'running'");
 
-    // "on" should NOT match "only"
-    this.assert(!testMatch("on", "She only turned the light"), "match: 'on' does NOT match 'only'");
-    this.assert(testMatch("on", "She turned on the light"), "match: 'on' matches exact 'on'");
-
-    // "die" should NOT match "audience"
-    this.assert(!testMatch("die", "The audience applauded"), "match: 'die' does NOT match 'audience'");
-    this.assert(testMatch("die", "He will die"), "match: 'die' matches exact 'die'");
-
-    // "bra" should NOT match "Brazil"
-    this.assert(!testMatch("bra", "Brazil is beautiful"), "match: 'bra' does NOT match 'Brazil'");
-    this.assert(testMatch("bra", "She bought a bra"), "match: 'bra' matches exact 'bra'");
+    const noForms = VideoData.getAllForms("notaword");
+    this.assert(noForms.length === 0, "getAllForms: empty for non-existent word");
   },
 
-  // Test: regex matching - long words (4+ chars) with suffixes
-  testLongWordMatching() {
-    this.setup();
-    VideoData.wordToVideos = this.mockGlossary;
-
-    const suffixPattern = (word) =>
-      word.length >= 4 ? '(s|es|ed|ing|tion|ly|ment|ness)?' : '';
-
-    const testMatch = (word, text) => {
-      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`\\b${escaped}${suffixPattern(word)}\\b`, 'gi');
-      return regex.test(text);
-    };
-
-    // "conflict" should match suffixed forms
-    this.assert(testMatch("conflict", "The conflict arose"), "match: 'conflict' exact");
-    this.assert(testMatch("conflict", "Conflicting reports"), "match: 'conflict' -> 'Conflicting'");
-    this.assert(testMatch("conflict", "Multiple conflicts"), "match: 'conflict' -> 'conflicts'");
-    this.assert(testMatch("conflict", "They conflicted"), "match: 'conflict' -> 'conflicted'");
-
-    // "conflict" should NOT match in hyphenated second part
-    this.assert(testMatch("conflict", "A conflict-free zone"), "match: 'conflict' in 'conflict-free'");
-
-    // "book" should match suffixed forms
-    this.assert(testMatch("book", "She booked a flight"), "match: 'book' -> 'booked'");
-    this.assert(testMatch("book", "Two books on the shelf"), "match: 'book' -> 'books'");
-
-    // "page" should NOT match "Paget" (different word ending in 't')
-    this.assert(!testMatch("page", "Paget Gorman system"), "match: 'page' does NOT match 'Paget'");
-    this.assert(testMatch("page", "See this page for details"), "match: 'page' matches exact 'page'");
-    this.assert(testMatch("page", "Multiple pages exist"), "match: 'page' -> 'pages'");
-
-    // "sign" should NOT match "signer" or "signers" (-er/-ers create agent nouns)
-    this.assert(!testMatch("sign", "Native signers use ASL"), "match: 'sign' does NOT match 'signers'");
-    this.assert(!testMatch("sign", "The signer demonstrated"), "match: 'sign' does NOT match 'signer'");
-    this.assert(testMatch("sign", "Learn to sign"), "match: 'sign' matches exact 'sign'");
-    this.assert(testMatch("sign", "Multiple signs exist"), "match: 'sign' -> 'signs'");
-    this.assert(testMatch("sign", "She signed the document"), "match: 'sign' -> 'signed'");
-    this.assert(testMatch("sign", "He was signing"), "match: 'sign' -> 'signing'");
-  },
-
-  // Test: getWordsInText should not return false positives
+  // Test: getWordsInText — no false positives from substrings
   testGetWordsInText() {
-    this.setup();
-    VideoData.wordToVideos = this.mockGlossary;
+    this.setupWithData();
 
-    // Should find "conflict" in text containing "conflicting"
+    // Should find "conflict" via inflection map when "conflicting" is in text
     const words1 = VideoData.getWordsInText("The conflicting reports were discussed");
-    this.assert(words1.includes("conflict"), "getWordsInText: finds 'conflict' in 'conflicting'");
+    this.assert(words1.includes("conflict"), "getWordsInText: finds 'conflict' via 'conflicting'");
 
     // Should NOT find "bra" in text containing only "Brazil"
     const words2 = VideoData.getWordsInText("Brazil is a beautiful country");
@@ -224,6 +224,15 @@ const VideoDataTests = {
     // Should NOT find "die" in "audience"
     const words5 = VideoData.getWordsInText("The audience applauded loudly");
     this.assert(!words5.includes("die"), "getWordsInText: no 'die' in 'audience'");
+
+    // Should find via inflected forms
+    const words6 = VideoData.getWordsInText("She signed the document and kept running");
+    this.assert(words6.includes("sign"), "getWordsInText: finds 'sign' via 'signed'");
+    this.assert(words6.includes("run"), "getWordsInText: finds 'run' via 'running'");
+
+    // Agent nouns should NOT match base words
+    const words7 = VideoData.getWordsInText("The signer demonstrated ASL");
+    this.assert(!words7.includes("sign"), "getWordsInText: no 'sign' from 'signer'");
   },
 
   // Run all tests
@@ -235,8 +244,7 @@ const VideoDataTests = {
     this.testGetRandomEntryForWord();
     this.testGetVideoPath();
     this.testFindBaseWord();
-    this.testShortWordMatching();
-    this.testLongWordMatching();
+    this.testGetAllForms();
     this.testGetWordsInText();
 
     // Report results

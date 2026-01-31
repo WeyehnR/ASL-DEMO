@@ -114,7 +114,6 @@ export const PopupView = {
             if (this.element) {
                 this.element.style.display = 'none';
                 this.videoElement.pause();
-                this.videoElement.src = '';
             }
         }, CONFIG.timing.hideDelay);
     },
@@ -147,7 +146,6 @@ export const PopupView = {
         this.element.classList.remove('expanded');
         this.element.style.display = 'none';
         this.videoElement.pause();
-        this.videoElement.src = '';
     },
 
     /**
