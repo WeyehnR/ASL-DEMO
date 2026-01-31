@@ -4,6 +4,7 @@
  */
 
 import { VideoData } from "../model/video-data.js";
+import { AppState } from "../model/state.js";
 import { HighlightPresenter } from "./highlight-presenter.js";
 import { PopupPresenter } from "./popup-presenter.js";
 import { HighlightView } from "../view/highlight-view.js";
@@ -27,31 +28,32 @@ const AppPresenter = {
     /**
      * Load the test article
      */
-    loadArticle() {
-        fetch('asl_article.html')
-            .then(response => response.text())
-            .then(html => {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
+    async loadArticle() {
+        try {
+            const response = await fetch('asl_article.html');
+            const html = await response.text();
 
-                // Remove embedded videos/audio to prevent console errors
-                doc.querySelectorAll('video, audio, source').forEach(el => el.remove());
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
 
-                const container = document.getElementById('article-container');
-                container.innerHTML = doc.body.innerHTML;
+            // Remove embedded videos/audio to prevent console errors
+            doc.querySelectorAll('video, audio, source').forEach(el => el.remove());
 
-                // Set container for highlighting
-                HighlightView.setContainer(container);
+            const container = document.getElementById('article-container');
+            container.innerHTML = doc.body.innerHTML;
 
-                // Highlight all glossary words first, then build chips from actual DOM matches
-                HighlightPresenter.highlightAllGlossaryWords();
-                this.populateWordChipsFromDOM(container);
-            })
-            .catch(err => {
-                document.getElementById('article-container').innerHTML =
-                    '<p style="color:red;">Error loading article.</p>';
-                console.error(err);
-            });
+            // Set container for highlighting
+            HighlightView.setContainer(container);
+
+            // Highlight all glossary words first, then build chips from actual DOM matches
+            await HighlightPresenter.highlightAllGlossaryWords();
+            this.populateWordChipsFromDOM(container);
+            this.updateToggleButton();
+        } catch (err) {
+            document.getElementById('article-container').innerHTML =
+                '<p style="color:red;">Error loading article.</p>';
+            console.error(err);
+        }
     },
 
     /**
@@ -72,8 +74,9 @@ const AppPresenter = {
         const words = [...matchedWords].sort();
 
         WordChipsView.setContainer(document.getElementById('word-chips'));
-        WordChipsView.render(words, (word) => {
-            HighlightPresenter.highlightWord(word);
+        WordChipsView.render(words, async (word) => {
+            await HighlightPresenter.highlightWord(word);
+            this.updateToggleButton();
         });
     },
 
@@ -84,15 +87,38 @@ const AppPresenter = {
         const clearBtn = document.getElementById('clear-btn');
 
         if (clearBtn) {
-            clearBtn.addEventListener('click', () => this.handleClear());
+            clearBtn.addEventListener('click', () => this.handleToggle());
         }
     },
 
     /**
-     * Handle clear action
+     * Toggle between highlight-all and cleared states.
+     * In 'all' mode: clears everything.
+     * In 'word' or 'none' mode: restores all highlights.
      */
-    handleClear() {
-        HighlightPresenter.clearHighlights();
+    async handleToggle() {
+        if (AppState.highlightMode === 'all') {
+            await HighlightPresenter.clearHighlights();
+        } else {
+            await HighlightPresenter.highlightAllGlossaryWords();
+        }
+        this.updateToggleButton();
+    },
+
+    /**
+     * Update the toggle button text and style based on current highlight mode
+     */
+    updateToggleButton() {
+        const btn = document.getElementById('clear-btn');
+        if (!btn) return;
+
+        if (AppState.highlightMode === 'all') {
+            btn.textContent = 'Clear All Highlights';
+            btn.classList.add('clear');
+        } else {
+            btn.textContent = 'Show All Highlights';
+            btn.classList.remove('clear');
+        }
     }
 };
 

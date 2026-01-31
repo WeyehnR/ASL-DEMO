@@ -18,12 +18,16 @@ export const HighlightPresenter = {
      * Highlight all words from the glossary in a single pass
      * Includes base words + all inflected forms from the inflection map
      */
-    highlightAllGlossaryWords() {
+    async highlightAllGlossaryWords() {
+        this.matches = [];
+        this.currentMatchIndex = -1;
+        AppState.setHighlightMode('all');
+
         const baseWords = Object.keys(VideoData.wordToVideos);
         const inflectedForms = Object.keys(VideoData.inflectionMap);
         const allWords = baseWords.concat(inflectedForms);
 
-        HighlightView.highlightAll(
+        await HighlightView.highlightAll(
             allWords,
             (element) => {
                 const baseWord = VideoData.findBaseWord(element.textContent) || element.textContent;
@@ -36,26 +40,30 @@ export const HighlightPresenter = {
                     PopupPresenter.hidePopup();
                 });
 
-                element.addEventListener('click', () => {
+                element.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     PopupPresenter.expandPopup(element, baseWord);
                 });
             }
         );
+
+        ResultView.clear();
     },
 
     /**
      * Highlight a word and set up hover handlers
      */
-    highlightWord(word) {
+    async highlightWord(word) {
         // Reset match tracking
         this.matches = [];
         this.currentMatchIndex = -1;
+        AppState.setHighlightMode('word');
 
         const allForms = VideoData.getAllForms(word);
 
-        HighlightView.highlight(
+        const count = await HighlightView.highlight(
             allForms,
-            // For each match found
             (element) => {
                 // Store all matches for navigation
                 this.matches.push(element);
@@ -70,22 +78,22 @@ export const HighlightPresenter = {
                     PopupPresenter.hidePopup();
                 });
 
-                element.addEventListener('click', () => {
+                element.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     PopupPresenter.expandPopup(element, baseWord);
                 });
-            },
-            // When all highlighting is done
-            (count) => {
-                AppState.setMatchCount(count);
-                ResultView.showCount(count, this);
-                console.log(`Highlighted ${count} matches for "${word}"`);
-
-                // Navigate to first match
-                if (this.matches.length > 0) {
-                    this.goToMatch(0);
-                }
             }
         );
+
+        AppState.setMatchCount(count);
+        ResultView.showCount(count, this);
+        console.log(`Highlighted ${count} matches for "${word}"`);
+
+        // Navigate to first match
+        if (this.matches.length > 0) {
+            this.goToMatch(0);
+        }
     },
 
     /**
@@ -131,14 +139,31 @@ export const HighlightPresenter = {
     },
 
     /**
+     * Collect base words from nearby <mark> elements in the same paragraph.
+     * Used as context signal for variant disambiguation.
+     */
+    getNearbyContext(targetElement, word) {
+        const paragraph = targetElement.closest('p') || targetElement.parentElement;
+        const marks = paragraph.querySelectorAll('mark');
+        const nearbyWords = [];
+
+        for (const mark of marks) {
+            const base = VideoData.findBaseWord(mark.textContent);
+            if (!base || base === word) continue;
+            nearbyWords.push(base);
+        }
+
+        return nearbyWords;
+    },
+
+    /**
      * Clear all highlights
      */
-    clearHighlights() {
+    async clearHighlights() {
         this.matches = [];
         this.currentMatchIndex = -1;
-        HighlightView.clear(() => {
-            AppState.reset();
-            ResultView.showCleared();
-        });
+        await HighlightView.clear();
+        AppState.reset();
+        ResultView.showCleared();
     }
 };

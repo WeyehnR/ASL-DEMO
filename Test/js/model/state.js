@@ -9,6 +9,7 @@ export const AppState = {
     isLoading: false,
     hasVideo: false,
     matchCount: 0,
+    highlightMode: 'none',  // 'all' | 'word' | 'none'
 
     /**
      * Set the current word being looked up
@@ -50,6 +51,13 @@ export const AppState = {
     },
 
     /**
+     * Set highlight mode
+     */
+    setHighlightMode(mode) {
+        this.highlightMode = mode;
+    },
+
+    /**
      * Reset state
      */
     reset() {
@@ -58,5 +66,6 @@ export const AppState = {
         this.isLoading = false;
         this.hasVideo = false;
         this.matchCount = 0;
+        this.highlightMode = 'none';
     }
 };

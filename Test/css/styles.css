@@ -404,7 +404,6 @@ mark {
     align-items: center;
     background: var(--popup-header-bg);
     padding: var(--space-md) var(--space-lg);
-    border-bottom: 1px solid var(--popup-border);
 }
 
 .asl-popup-title {
@@ -417,13 +416,13 @@ mark {
     position: relative;
     width: 100%;
     height: var(--popup-video-height);
-    background: var(--popup-video-bg);
+    background: var(--popup-header-bg);
 }
 
 .asl-popup-video {
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: cover;
     display: none;
 }
 
@@ -448,7 +447,6 @@ mark {
     font-weight: 600;
     text-align: center;
     background: var(--popup-header-bg);
-    border-top: 1px solid var(--popup-border);
 }
 
 .asl-popup-meanings {
@@ -481,8 +479,7 @@ mark {
 
 /* --- Close & Fullscreen Buttons (hidden until expanded) --- */
 
-.asl-popup-close,
-.asl-popup-fullscreen {
+.asl-popup-close {
     display: none;
 }
 
@@ -501,24 +498,6 @@ mark {
     }
 }
 
-.asl-popup-fullscreen {
-    position: absolute;
-    bottom: var(--space-md);
-    right: var(--space-md);
-    background: rgba(0, 0, 0, 0.6);
-    border: none;
-    color: var(--popup-text);
-    font-size: var(--text-lg);
-    cursor: pointer;
-    padding: var(--space-sm) var(--space-md);
-    border-radius: var(--radius-md);
-    z-index: 1;
-
-    &:hover {
-        background: rgba(0, 0, 0, 0.8);
-    }
-}
-
 /* --- Expanded State --- */
 
 #asl-video-popup.expanded {
@@ -528,8 +507,7 @@ mark {
     transform: translate(-50%, -50%);
     width: 480px;
 
-    & .asl-popup-close,
-    & .asl-popup-fullscreen {
+    & .asl-popup-close {
         display: block;
     }
 

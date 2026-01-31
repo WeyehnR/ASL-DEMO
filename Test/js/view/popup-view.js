@@ -27,7 +27,6 @@ export const PopupView = {
             </div>
             <div class="asl-popup-video-container">
                 <video class="asl-popup-video" autoplay loop muted playsinline></video>
-                <button class="asl-popup-fullscreen" title="Fullscreen">\u26F6</button>
                 <div class="asl-popup-loading">Loading...</div>
                 <div class="asl-popup-no-video">No video available</div>
             </div>
@@ -151,19 +150,6 @@ export const PopupView = {
         this.element.classList.remove('expanded');
         this.element.style.display = 'none';
         this.videoElement.pause();
-    },
-
-    /**
-     * Enter fullscreen on the video element
-     */
-    enterFullscreen() {
-        if (!this.videoElement) return;
-
-        if (this.videoElement.requestFullscreen) {
-            this.videoElement.requestFullscreen();
-        } else if (this.videoElement.webkitRequestFullscreen) {
-            this.videoElement.webkitRequestFullscreen();
-        }
     },
 
     /**
