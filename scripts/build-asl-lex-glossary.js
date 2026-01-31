@@ -303,6 +303,19 @@ function generateAdjectiveInflections(word) {
     return forms;
 }
 
+// Words whose sign can combine with the PERSON marker.
+// Countries → COUNTRY + PERSON = person of that nationality
+// Occupations → SIGN + PERSON = person who does that thing
+// (Excludes "doctor" — has its own dedicated sign, not typically combined with PERSON)
+const PERSON_COMBINABLE = new Set([
+    // Countries / places
+    'america', 'africa', 'canada', 'china', 'france',
+    'germany', 'italy', 'japan', 'russia', 'spain', 'indian',
+    // Occupations
+    'actor', 'cook', 'dancer', 'lawyer', 'nurse',
+    'policeman', 'fireman', 'army', 'teacher',
+]);
+
 // Irregular forms — only applied if base word exists in glossary
 const IRREGULAR_INFLECTIONS = {
     // Irregular verbs (past tense / past participle)
@@ -362,6 +375,17 @@ const IRREGULAR_INFLECTIONS = {
     'championship': 'champion',
     // Singular form of plural-base glossary entry
     'player': 'players',
+    // Demonyms / nationality adjectives → country entry
+    'american': 'america', 'americans': 'america',
+    'canadian': 'canada', 'canadians': 'canada',
+    'chinese': 'china',
+    'french': 'france',
+    'german': 'germany', 'germans': 'germany',
+    'italian': 'italy', 'italians': 'italy',
+    'japanese': 'japan',
+    'russian': 'russia', 'russians': 'russia',
+    'spanish': 'spain',
+    'african': 'africa', 'africans': 'africa',
 };
 
 function generateInflectionMap(glossary) {
@@ -510,6 +534,18 @@ function main() {
             }
         }
     }
+
+    // Stamp personCombinable flag on matching entries
+    let personCombinableCount = 0;
+    for (const word of PERSON_COMBINABLE) {
+        if (glossary[word]) {
+            for (const entry of glossary[word]) {
+                entry.personCombinable = true;
+            }
+            personCombinableCount++;
+        }
+    }
+    console.log(`\nPerson-combinable entries stamped: ${personCombinableCount}`);
 
     // Generate inflection map
     console.log('\nGenerating inflection map...');

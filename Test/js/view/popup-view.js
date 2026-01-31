@@ -33,6 +33,7 @@ export const PopupView = {
             </div>
             <div class="asl-popup-word"></div>
             <div class="asl-popup-meanings"></div>
+            <div class="asl-popup-person-hint">Can combine with PERSON sign</div>
         `;
 
         document.body.appendChild(this.element);
@@ -52,12 +53,16 @@ export const PopupView = {
         const meaningsEl = this.element.querySelector('.asl-popup-meanings');
         const lexicalEl = this.element.querySelector('.asl-popup-lexical-class');
 
+        const personHintEl = this.element.querySelector('.asl-popup-person-hint');
+
         if (state.currentEntry) {
             meaningsEl.textContent = state.currentEntry.meanings || '';
             lexicalEl.textContent = state.currentEntry.lexicalClass || '';
+            personHintEl.style.display = state.currentEntry.personCombinable ? 'block' : 'none';
         } else {
             meaningsEl.textContent = '';
             lexicalEl.textContent = '';
+            personHintEl.style.display = 'none';
         }
 
         // Update state classes

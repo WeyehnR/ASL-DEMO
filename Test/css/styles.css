@@ -460,6 +460,15 @@ mark {
     font-style: italic;
 }
 
+.asl-popup-person-hint {
+    display: none;
+    padding: var(--space-xs) var(--space-lg);
+    color: var(--color-primary);
+    font-size: var(--text-sm);
+    text-align: center;
+    background: var(--popup-header-bg);
+}
+
 .asl-popup-lexical-class {
     color: var(--popup-muted);
     font-size: var(--text-xs);
