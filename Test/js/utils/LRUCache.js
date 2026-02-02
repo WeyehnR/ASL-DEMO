@@ -85,4 +85,17 @@ export class LRUCache {
     node.prev = null;
     node.next = null;
   }
+
+  // Walks the linked list from head (MRU) → tail (LRU) and prints the order.
+  // Example: "LRU(3/5): [d] → [c] → [a]"
+  //           ↑ size/capacity   head(MRU)      tail(LRU)
+  toString() {
+    const parts = [];
+    let current = this.head;
+    while (current) {
+      parts.push(`[${current.key}]`);
+      current = current.next;
+    }
+    return `LRU(${this.map.size}/${this.capacity}): ${parts.join(" → ") || "(empty)"}`;
+  }
 }

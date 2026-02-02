@@ -1,0 +1,25 @@
+{
+  "name": "asl-demo",
+  "version": "1.0.0",
+  "description": "A browser extension that highlights words on web pages and shows ASL (American Sign Language) video translations with definitions.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "node Test/js/tests/run-all.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WeyehnR/ASL-DEMO.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/WeyehnR/ASL-DEMO/issues"
+  },
+  "homepage": "https://github.com/WeyehnR/ASL-DEMO#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.1",
+    "@types/node": "^25.2.0"
+  }
+}

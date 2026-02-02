@@ -5,42 +5,11 @@
  */
 
 import { CONFIG } from "../config.js";
+import { wordResolver } from "./word-resolver.js";
 
 export const VideoData = {
   wordToVideos: {},
-  inflectionMap: {},   // inflected form → base word
-  reverseMap: {},      // base word → [inflected forms]
   isLoaded: false,
-
-  // Find the base/stem word in glossary via inflection map lookup
-  findBaseWord(word) {
-    const normalized = word.toLowerCase();
-
-    // Exact match in glossary
-    if (this.wordToVideos[normalized]) {
-      return normalized;
-    }
-
-    // Inflection map lookup
-    const base = this.inflectionMap[normalized];
-    if (base && this.wordToVideos[base]) {
-      return base;
-    }
-
-    return null;
-  },
-
-  // Get all forms (base + inflections) for a word
-  getAllForms(word) {
-    const baseWord = this.findBaseWord(word);
-    if (!baseWord) return [];
-
-    const forms = [baseWord];
-    if (this.reverseMap[baseWord]) {
-      forms.push(...this.reverseMap[baseWord]);
-    }
-    return forms;
-  },
 
   // Load ASL-LEX glossary
   async init() {
@@ -52,20 +21,20 @@ export const VideoData = {
       const data = await response.json();
 
       // Extract inflection map, then remove it from word entries
-      this.inflectionMap = data.__inflectionMap || {};
+      wordResolver.inflectionMap = data.__inflectionMap || {};
       delete data.__inflectionMap;
 
       this.wordToVideos = data;
 
       // Build reverse map: base word → [inflected forms]
-      this.reverseMap = {};
-      for (const [inflected, base] of Object.entries(this.inflectionMap)) {
-        if (!this.reverseMap[base]) {
-          this.reverseMap[base] = [];
+      wordResolver.reverseMap = {};
+      for (const [inflected, base] of Object.entries(wordResolver.inflectionMap)) {
+        if (!wordResolver.reverseMap[base]) {
+          wordResolver.reverseMap[base] = [];
         }
-        this.reverseMap[base].push(inflected);
+        wordResolver.reverseMap[base].push(inflected);
       }
-
+      wordResolver.init(this.wordToVideos);
       this.isLoaded = true;
     } catch (error) {
       console.error("Failed to fetch glossary: ", error);
@@ -84,7 +53,7 @@ export const VideoData = {
   // Get entry (with all metadata) for a word
   // Tries exact match first, then uses inflection map
   getEntryForWord(word) {
-    const baseWord = this.findBaseWord(word);
+    const baseWord = wordResolver.findBaseWord(word);
     if (!baseWord) {
       return null;
     }
@@ -94,10 +63,13 @@ export const VideoData = {
 
   // Get all entries for a word (for showing variants)
   getAllEntriesForWord(word) {
-    const baseWord = this.findBaseWord(word);
+    const baseWord = wordResolver.findBaseWord(word);
     return baseWord ? this.wordToVideos[baseWord] : [];
   },
 
+
+  // NOTE: IT relies heavily on the density of highlighted words it would fail silently on less dense
+  // highlighted words
   // Pick the best variant for a word based on nearby context words.
   // Scores each variant by how well its lexical class and semantic field
   // match the surrounding highlighted words.
@@ -116,7 +88,8 @@ export const VideoData = {
       if (!entry) continue;
       if (entry.lexicalClass) neighborClasses.push(entry.lexicalClass);
       const field = entry.semanticField;
-      if (field && field !== 'None' && field !== '-') neighborFields.push(field);
+      if (field && field !== "None" && field !== "-")
+        neighborFields.push(field);
     }
 
     let bestIndex = 0;
@@ -131,7 +104,7 @@ export const VideoData = {
       }
 
       const field = e.semanticField;
-      if (field && field !== 'None' && field !== '-') {
+      if (field && field !== "None" && field !== "-") {
         for (const nf of neighborFields) {
           if (nf === field) score += 2;
         }
@@ -155,36 +128,9 @@ export const VideoData = {
     return null;
   },
 
-  // Check if word exists in glossary (with inflection map)
-  hasWord(word) {
-    return this.findBaseWord(word) !== null;
-  },
-
   // Get count of variants for a word
   getVariantCount(word) {
     const entries = this.getAllEntriesForWord(word);
     return entries.length;
   },
-
-  // Find all glossary words that appear in a text
-  // Tokenizes text and does O(1) lookups against glossary + inflection map
-  getWordsInText(text) {
-    const textWords = new Set(text.toLowerCase().match(/\b[a-z]+\b/g) || []);
-    const matchedBaseWords = new Set();
-
-    for (const textWord of textWords) {
-      // Direct glossary match
-      if (this.wordToVideos[textWord]) {
-        matchedBaseWords.add(textWord);
-        continue;
-      }
-      // Inflection map match
-      const base = this.inflectionMap[textWord];
-      if (base && this.wordToVideos[base]) {
-        matchedBaseWords.add(base);
-      }
-    }
-
-    return [...matchedBaseWords];
-  }
 };
