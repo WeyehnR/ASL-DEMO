@@ -308,6 +308,76 @@ Real browser, real DOM, real mark.js. This is where you verify that the pieces a
 
 Every hover triggers a video load. Quick hovers across multiple words start and abort loads repeatedly. An LRU cache (5-10 entries) for loaded video blobs would make re-hovers instant and reduce network churn.
 
+### Production-Site Highlight Testing
+
+When the extension runs on arbitrary web pages (news sites, blogs), the highlighter will encounter hostile DOM conditions that don't exist in our controlled article. Test with fixture HTML files that simulate each scenario:
+
+**1. Scoping — don't highlight outside the article**
+
+Pages have nav bars, footers, cookie banners, comment sections all containing text. Verify that only the article body is highlighted, not "Sign up for our newsletter" in a banner.
+
+**2. Late-injected DOM — popups that arrive after highlighting**
+
+Subscription modals and paywalls often inject themselves into the article container seconds after page load. This can displace existing `<mark>` elements. Verify that highlights and their event listeners survive DOM insertion by siblings. Requires a `MutationObserver` to detect and handle new content.
+
+**3. DOM removal — paywalls that delete content**
+
+Some paywalls replace article `innerHTML` with a truncated version, destroying all `<mark>` elements. Verify the highlighter detects content removal, re-highlights remaining text, updates match counts, and doesn't leak orphaned event listeners from removed marks.
+
+**4. Z-index conflicts — our popup vs their popup**
+
+Cookie banners and modals fight for z-index. Verify that site overlays render above our video popup, and that hover events on `<mark>` elements don't fire through an overlay (no phantom popup behind a modal).
+
+**5. CSS conflicts — site styles overriding ours**
+
+News sites may have global `mark { background: none; }` resets or `* { cursor: default !important; }`. Verify highlights remain visible. Options: higher specificity selectors, `!important`, or shadow DOM isolation for the popup.
+
+**6. Dynamic content — "read more" / infinite scroll**
+
+Articles that load more paragraphs on scroll or click. Verify newly loaded content gets highlighted, word chips update, and match navigation includes new matches. Requires `MutationObserver` on added child nodes.
+
+**Test fixture approach:**
+
+```
+test/fixtures/
+  ├── clean-article.html          ← baseline, no interference
+  ├── late-injected-modal.html    ← script injects popup after 500ms
+  ├── paywall-truncation.html     ← script replaces article after 1s
+  ├── split-text-nodes.html       ← words broken across <span>s
+  ├── aggressive-css-reset.html   ← mark { background: none } etc.
+  └── infinite-scroll.html        ← loads more paragraphs on scroll
+```
+
+Each fixture is a self-contained HTML page with a script simulating the hostile behavior on a timer. The test suite loads each fixture, runs the highlighter, triggers the hostile behavior, and asserts the highlighter either handles it or degrades gracefully.
+
+### Hover-to-Video Chain — Known Downsides
+
+The full hover path (`showPopup → getNearbyContext → disambiguate → getVideo → loadVideo`) has several structural issues worth addressing as the project matures:
+
+**1. Disambiguation is paragraph-scoped and silent-fallback**
+
+`getNearbyContext` only looks at other `<mark>` elements in the same `<p>`. Context in the previous paragraph, a heading, or a subheading is invisible. If there are no nearby glossary words, every variant scores 0 and index 0 wins silently — the user gets whichever variant was listed first in the dataset with no indication that the system guessed.
+
+**2. Metadata display blocks on video fetch**
+
+`AppState.setCurrentEntry()` is called before the fetch starts, but `PopupView.render()` only runs inside the `onReady` callback. The word's definition and metadata could be shown immediately while the video loads, rather than waiting behind the spinner.
+
+**3. Cache key is per-word, `currentIndex` is mutable shared state**
+
+The LRU cache keys on the base word. If "bat" is disambiguated to variant 0 in one paragraph and variant 2 in another, the second hover mutates `cached.currentIndex` on the same cache entry. Clicking "next variant" on the first instance then cycles from the wrong starting point.
+
+**4. Background prefetch is unthrottled and fire-and-forget**
+
+`_fetchRemainingVariants` fires fetches for all other variants with no concurrency limit. Rapidly hovering across 10 multi-variant words can launch 30+ parallel fetches, competing with the primary fetch the user is waiting on. Failed background fetches set `blobUrls[i] = null` silently — the "next variant" button skips them with no user feedback.
+
+**5. Race guard is word-level, not request-level**
+
+`_loadingWord` tracks a single string. It correctly discards stale responses when the user moves to a different word, but doesn't distinguish between two overlapping fetches for the same word. An `AbortController` per request would be more precise and would also free network resources when a fetch is no longer needed.
+
+**6. Synchronous coupling across four modules**
+
+`PopupPresenter → HighlightPresenter → VideoData → VideoService` — four modules deep in one synchronous call stack. If disambiguation ever needs to be async (e.g., calling an NLP API or LLM for better word sense disambiguation), the change would ripple through the entire chain. An event-based or async-first design (related to "Decouple Presenters" above) would isolate that change.
+
 ### Browser Extension Readiness
 
 - Content script entry point that highlights existing page content instead of fetching/injecting an article

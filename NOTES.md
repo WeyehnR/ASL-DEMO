@@ -313,3 +313,206 @@ For the extension, this means agent nouns should map to their base verb's video 
 to a dedicated glossary entry if one exists, like `players.mp4` which shows the
 compound sign). We handle these case-by-case in the irregular inflections list rather
 than with a blanket rule, to avoid false positives like "doctor" → "doct".
+
+---
+
+## Highlight Logic (mark.js)
+
+### How it works
+
+The highlighter lives in `HighlightView`. It takes all words to highlight (base forms +
+inflections, ~7600 total), builds a single regex `\b(?:word1|word2|...)\b`, and calls
+`mark.markRegExp()` — one DOM traversal for all words.
+
+Key details:
+
+- Words are sorted **longest-first** before joining. This matters for regex alternation:
+  "running" must be tried before "run", otherwise "run" matches first inside "running".
+- Special regex characters are escaped per word to prevent pattern injection.
+- `mark.js` is initialized with the `#article-container` as its scope.
+
+### Why one regex instead of mark.js's built-in `mark(array)`
+
+`mark.js` has a `mark(array)` method that accepts a word list. Internally it loops per
+word, doing a separate DOM traversal for each. With ~2000 base words + ~5600 inflections,
+that's thousands of separate DOM walks. The single-regex approach via `markRegExp()` does
+it in one pass.
+
+### Why mark.js instead of a manual TreeWalker
+
+Under the hood, mark.js **is** a TreeWalker — it does a DFS through text nodes and wraps
+regex matches in `<mark>` elements. A manual version would look like:
+
+```
+create TreeWalker(container, SHOW_TEXT)
+for each text node:
+    regex.exec(node.textContent)
+    for each match:
+        splitText() to isolate the match
+        wrap in <mark>
+```
+
+For our controlled article HTML, this would work fine. mark.js earns its keep by handling
+edge cases that matter on arbitrary web pages:
+
+1. **Cross-element text** — a word split across tags like `<em>hel</em>lo`. A TreeWalker
+   sees "hel" and "lo" as separate text nodes and the regex matches neither. mark.js
+   stitches adjacent text nodes conceptually and wraps each piece separately.
+
+2. **Safe unwrapping** — `unmark()` needs to remove `<mark>` elements and merge the text
+   nodes back together. Without merging, the DOM ends up with fragmented text nodes that
+   break text selection, confuse other scripts, and cause double-wrapping on re-highlight.
+
+3. **Split-node bookkeeping** — wrapping a match requires `splitText()` which changes the
+   text node the walker is currently on. mark.js tracks position correctly through these
+   mutations.
+
+For our demo with clean authored HTML, none of these fire. On real web pages (Grammarly
+spans, CMS bold-in-middle-of-word, ad-injected tracking spans), they would.
+
+### The `each` callback
+
+`markRegExp()` takes an `each` callback that fires for every `<mark>` element created.
+This is where the presenter attaches `mouseenter`, `mouseleave`, and `click` handlers
+to each highlighted word. The callback also resolves the base word via
+`VideoData.findBaseWord(element.textContent)` so the hover handler knows which glossary
+entry to load.
+
+### Two highlight modes
+
+1. **highlightAll** — runs on page load, highlights every glossary word + inflection.
+   No match tracking, no navigation.
+2. **highlightWord** — runs when a word chip is clicked. Highlights only that word's forms,
+   stores matches in an array, enables prev/next navigation with `goToMatch()`, and scrolls
+   to the first match.
+
+---
+
+## Production News Site DOM Research
+
+Research into what the highlighter will face on real news sites when this becomes a
+browser extension. Based on web research (Feb 2026).
+
+### Article body detection — the core problem
+
+News sites don't reliably use semantic HTML. CNN's article body is a
+`<div class="article__content">` with the headline in `<h1 class="headline__text">` —
+all class-based, no `<article>` tag. This is typical across major news sites. CMSs
+generate div-heavy markup, and some sites actively abuse semantic tags (dozens of
+`<article>` elements for link lists, `<h2>` used for visual sizing rather than structure).
+
+This means you can't just target `<article>` or `role="main"` and expect it to work
+everywhere.
+
+### Mozilla Readability.js — how article extraction actually works
+
+Readability.js (https://github.com/mozilla/readability) is what powers Firefox Reader
+View. It's heuristic-based, not ML. The algorithm:
+
+1. **Pre-check** (`isProbablyReaderable()`) — quick scan: does the page have enough
+   content to be worth processing? Checks `minContentLength` (default 140 chars) and
+   `minScore` (default 20).
+
+2. **Preprocessing** — remove scripts/styles, unwrap noscript tags (reveals lazy-loaded
+   images), replace deprecated font tags with spans.
+
+3. **Content scoring** (the heart of it):
+   - **Tag type points**: `<article>` = 8, `<section>` = 8, `<p>` = 5, `<div>` = 2-5
+   - **Class/ID name scoring**: +25 for names like "article", "content", "entry", "post".
+     -25 for "sidebar", "comment", "footer", "banner", "hidden"
+   - **Text density**: character count, comma frequency (commas signal substantial prose)
+   - **Link density penalties**: navigation-heavy sections get penalized
+
+4. **Score bubbling** — paragraph scores bubble up to parents and grandparents
+   (grandparents get half). The highest-scoring ancestor container wins.
+
+5. **Candidate selection** — top 5 candidates compared. If the winner has no siblings,
+   traverse up to check parent's siblings for adjacent content.
+
+6. **Post-processing** — remove layout tables (keep data tables), preserve images/video,
+   filter hidden elements and empty paragraphs. Minimum 500 chars to return a result.
+
+Key insight: it works because most article containers naturally accumulate high scores
+(lots of `<p>` tags with long text, few links) while sidebars and nav score low (many
+links, short text, negative class names). Readability has the highest median extraction
+score (0.970) compared to even neural approaches.
+
+### Paywall DOM patterns — two types
+
+**Soft paywalls** (most common): the full article IS in the DOM, but JavaScript
+overlays or blurs it. Sites do this for SEO — Google needs to see the full text to rank
+the article. Common paywall elements:
+- `#subscription-modal`, `.modal-backdrop`, `.redacted-overlay`
+- `.subscriber-only`, `.subscription-required`
+- CSS: `filter: blur(5px)`, `overflow: hidden`, `max-height` with `overflow: hidden`
+  on the article container to truncate visually
+
+This is good for us — the text is in the DOM, our highlighter can reach it. But the
+overlay creates z-index and pointer-event problems for our popup.
+
+**Hard paywalls**: the article content is NOT sent to the browser. The server returns a
+truncated version (2-3 paragraphs). Nothing to highlight beyond what's shown.
+
+### Cookie consent banners — the DOM vandals
+
+Consent banners do several hostile things to the page:
+
+1. **Injection location** — inserted as first or last child of `<body>`. Not inside the
+   article, so container scoping protects our highlights from being marked inside banners.
+
+2. **Scroll lock** — JavaScript adds `overflow: hidden` to `<body>`, preventing scrolling.
+   This can affect our popup positioning if it relies on scroll coordinates.
+
+3. **Accessibility override** — set `aria-hidden="true"` on ALL content behind the modal.
+   Screen readers can't reach our highlights until the banner is dismissed.
+
+4. **Visual hiding** — `backdrop-filter: blur(10px)` on the overlay blurs everything
+   behind it, making highlights invisible even though they're in the DOM.
+
+5. **Keyboard trapping** — focus is trapped inside the consent modal. Users can't Tab
+   to our highlighted words until they interact with the banner.
+
+### Anti-tampering: sites that fight back
+
+Some sites deploy their own `MutationObserver` watching for DOM changes. If our extension
+wraps text in `<mark>` elements (which is a DOM mutation inside the article container),
+their observer could detect it and:
+- Reload the page
+- Re-inject the paywall overlay
+- Remove our modifications
+
+This means we may need to be careful about when we run the highlighter relative to the
+site's own scripts, or use techniques like Shadow DOM to isolate our changes.
+
+### The `innerHTML` replacement attack
+
+Some paywalls don't just overlay — they replace `article.innerHTML` with a truncated
+version after a delay. This destroys all our `<mark>` elements and their event listeners.
+The one-line pattern: `document.body.outerHTML = truncatedHTML`. Our highlights vanish
+with no error.
+
+Detection requires a `MutationObserver` on the article container watching for `childList`
+mutations. If we detect bulk removal of our `<mark>` elements, we know the content was
+replaced and can re-highlight whatever remains.
+
+### Approach options for article body detection
+
+Three options, from most robust to simplest:
+
+1. **Use Readability.js** — extract the article container before highlighting. Most
+   accurate, handles all site structures, but adds a ~15KB dependency and requires
+   cloning the DOM (Readability modifies the document it's given).
+
+2. **Simple heuristic** — find `<article>`, fall back to `role="main"`, fall back to
+   the largest text block (most `<p>` children). Less accurate but no dependency.
+
+3. **User selection** — let the user right-click or use a keyboard shortcut to select
+   the region to highlight. Most accurate for the user's intent, but requires interaction.
+
+### Sources
+
+- Mozilla Readability.js: https://github.com/mozilla/readability
+- Readability algorithm deep dive: https://deepwiki.com/mozilla/readability
+- web.dev cookie notice best practices: https://web.dev/articles/cookie-notice-best-practices
+- Cookie consent accessibility analysis: https://cerovac.com/a11y/2020/07/cookie-consent-banners-and-overlays-thoughts-on-accessibility-usability-and-seo/
+- Google paywalled content structured data: https://developers.google.com/search/docs/appearance/structured-data/paywalled-content
