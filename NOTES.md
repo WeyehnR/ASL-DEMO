@@ -516,3 +516,171 @@ Three options, from most robust to simplest:
 - web.dev cookie notice best practices: https://web.dev/articles/cookie-notice-best-practices
 - Cookie consent accessibility analysis: https://cerovac.com/a11y/2020/07/cookie-consent-banners-and-overlays-thoughts-on-accessibility-usability-and-seo/
 - Google paywalled content structured data: https://developers.google.com/search/docs/appearance/structured-data/paywalled-content
+
+---
+
+## CSS Custom Highlight API — Console Experiment (Feb 2026)
+
+### What I tested
+
+Ran the Highlight API directly in the browser console on a Wikipedia article to see
+how it works before integrating it into the extension.
+
+### Highlighting words without touching the DOM
+
+```javascript
+// 1. Walk all text nodes on the page
+const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+const ranges = [];
+
+// 2. For each text node, find matches and create Range objects
+while (walker.nextNode()) {
+  const textNode = walker.currentNode;
+  const regex = /\bthe\b/gi;
+  let match;
+  while ((match = regex.exec(textNode.textContent)) !== null) {
+    const range = new Range();
+    range.setStart(textNode, match.index);
+    range.setEnd(textNode, match.index + match[0].length);
+    ranges.push(range);
+  }
+}
+
+// 3. Register the highlight — browser paints it, DOM is untouched
+const highlight = new Highlight(...ranges);
+CSS.highlights.set("my-test", highlight);
+
+// 4. Style via pseudo-element (only DOM change is this one <style> tag)
+const style = document.createElement("style");
+style.textContent = `::highlight(my-test) { background-color: rgba(255, 255, 0, 0.4); }`;
+document.head.appendChild(style);
+```
+
+Key observation: right-clicking a highlighted word and inspecting it shows NO `<mark>`
+or `<span>` wrapper. The text node is untouched. The highlight is purely a paint-layer
+effect. Clearing is instant: `CSS.highlights.delete("my-test")`.
+
+### Hover detection without DOM events
+
+Since highlights aren't DOM elements, you can't attach `mouseenter`/`mouseleave` to them.
+Instead, use `caretPositionFromPoint` (Firefox) or `caretRangeFromPoint` (Chrome/Safari)
+to figure out which text node and character offset the cursor is over:
+
+```javascript
+document.addEventListener("mousemove", (e) => {
+  let node, offset;
+
+  // Firefox uses caretPositionFromPoint, Chrome uses caretRangeFromPoint
+  if (document.caretPositionFromPoint) {
+    const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+    if (!pos) return;
+    node = pos.offsetNode;
+    offset = pos.offset;
+  } else if (document.caretRangeFromPoint) {
+    const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+    if (!range) return;
+    node = range.startContainer;
+    offset = range.startOffset;
+  }
+
+  if (!node || node.nodeType !== Node.TEXT_NODE) return;
+
+  // Extract the full word under the cursor
+  const before = node.textContent.slice(0, offset).match(/\w+$/);
+  const after = node.textContent.slice(offset).match(/^\w+/);
+  const word = (before ? before[0] : "") + (after ? after[0] : "");
+});
+```
+
+### Popup via a simple div (console prototype)
+
+Created a `position: fixed` div with `pointer-events: none` that follows the cursor
+and shows the word. In the real extension this would be a Shadow DOM container with
+the `<video>` element inside.
+
+### Gotcha: Firefox vs Chrome API
+
+`document.caretRangeFromPoint` is Chrome/Safari only. Firefox uses
+`document.caretPositionFromPoint` which returns `{ offsetNode, offset }` instead of
+a Range. Need to check for both in the extension.
+
+### Why this matters for the extension
+
+Our current `highlight-view.js` uses mark.js which wraps matches in `<mark>` elements.
+This is a DOM mutation — every highlighted word is a new element. On real websites:
+- The page's own MutationObserver could detect our changes
+- DOM weight increases (thousands of extra elements)
+- Frameworks that track DOM state could break
+
+The Highlight API avoids all of this. The only DOM changes would be:
+1. One `<style>` tag for `::highlight()` styling
+2. The popup container (ideally inside a Shadow DOM)
+
+### Limitation: styling is restricted
+
+`::highlight()` only supports: `color`, `background-color`, `text-decoration`,
+`text-shadow`, `stroke-color`, `fill-color`, `stroke-width`, and custom properties.
+No `font-weight`, `font-size`, `padding`, `border`, etc. For our use case
+`background-color` is all we need.
+
+### TreeWalker internals — DFS pre-order
+
+TreeWalker uses **depth-first search (DFS)**, specifically **pre-order** traversal:
+visit the parent, then go as deep as possible down the left side before backtracking.
+
+For this HTML:
+```html
+<div><p>Hello<em>there</em></p><p>World</p></div>
+```
+
+The DOM tree looks like:
+
+```text
+        <div>
+       /     \
+    <p>       <p>
+   /    \       \
+ "Hello" <em>  "World"
+          |
+        "there"
+```
+
+TreeWalker with `SHOW_TEXT` visits text nodes in this order:
+
+```text
+1. "Hello"     (leftmost, deepest first)
+2. "there"     (still going deep-left inside <em>)
+3. "World"     (backtrack up, then right subtree)
+```
+
+This matches visual reading order (left to right, top to bottom) — not a coincidence.
+The DOM is structured so that DFS pre-order = reading order.
+
+**Why DFS and not BFS?**
+
+BFS visits all nodes at the same depth before going deeper. For the tree above,
+BFS of text nodes would give: `"Hello"`, `"World"`, `"there"` — wrong reading order,
+because `"there"` appears between `"Hello"` and `"World"` visually.
+
+**nextNode() algorithm:**
+
+```text
+nextNode():
+  1. If current node has a first child → go to it
+  2. Else if current node has a next sibling → go to it
+  3. Else walk UP to parent, try its next sibling
+  4. Repeat step 3 until you find a sibling or run out of tree
+
+  At each candidate, check the NodeFilter (e.g., SHOW_TEXT).
+  If it passes → return it.
+  If it doesn't → skip it but keep traversing through its children.
+```
+
+The "skip node but still visit children" part is key: with `SHOW_TEXT`, the TreeWalker
+skips every `<div>`, `<p>`, `<em>` — but still walks *through* them to reach the text
+nodes inside. The filter doesn't prune the subtree, it only controls which nodes get
+returned to you.
+
+**Bare text nodes:** `"Hello"` in `<p>Hello<em>there</em></p>` isn't wrapped in a tag.
+It's a text node sitting directly inside the `<p>`, as a sibling to `<em>`.
+The DOM has nodes for both elements AND text, even when the text has no wrapper.
