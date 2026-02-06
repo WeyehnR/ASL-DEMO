@@ -31,13 +31,10 @@ const AppStateTests = {
   testSetCurrentWord() {
     this.setup();
 
-    // TODO: Set a word, assert it was stored
     AppState.setCurrentWord('actor')
     this.assert('actor' === AppState.currentWord, 'setCurrentWord actually stores word')
-    // TODO: Set a different word, assert it overwrote the previous one
     AppState.setCurrentWord('doctor')
     this.assert('doctor' === AppState.currentWord, 'setCurrentWord actually overwrites the old stored word')
-    // TODO: Set empty string, assert it's stored (not rejected)
     AppState.setCurrentWord('')
     this.assert('' === AppState.currentWord, 'setCurrentWord actually stores empty strings')
   },
@@ -47,10 +44,8 @@ const AppStateTests = {
 
     const mockEntry = { entryId: "book", meanings: "book, novel", videoFile: "book.mp4" };
 
-    // TODO: Set the mock entry, assert currentEntry matches
     AppState.setCurrentEntry(mockEntry)
     this.assert(AppState.currentEntry === mockEntry, "setCurrentEntry: stores entry")
-    // TODO: Set null, assert currentEntry is null (this happens on error/clear)
     AppState.setCurrentEntry(null)
     this.assert(AppState.currentEntry === null, "setCurrentEntry: stores null")
   },
@@ -91,14 +86,9 @@ const AppStateTests = {
   testSetLoadingSideEffect() {
     this.setup();
 
-    // TODO:
-    // 1. Set hasVideo to true (simulate a loaded video)
     AppState.hasVideo = true;
-    // 2. Call setLoading(true)
     AppState.setLoading(true)
-    // 3. Assert hasVideo is now false (the side effect)
     this.assert(AppState.hasVideo === false,"Should reset hasVideo to False")
-    // 4. Assert isLoading is true
     this.assert(AppState.isLoading == true, "isLoading should be true")
 
     // Also test: setLoading(false) should NOT touch hasVideo

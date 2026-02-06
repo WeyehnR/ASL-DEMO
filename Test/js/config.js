@@ -6,6 +6,7 @@
 export const CONFIG = {
     // Popup positioning
     popup: {
+        width: 300,            // Estimated popup width for positioning
         height: 280,           // Estimated popup height for positioning
         offset: 8,             // Gap between element and popup
         minLeft: 10,           // Minimum distance from left edge

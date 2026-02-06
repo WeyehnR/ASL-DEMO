@@ -1,155 +1,63 @@
+import { CONFIG } from "../config.js";
+import { createPopupTemplate } from "./popup-overlay.template.js";
+
 /**
  * PopupOverlayView — A Shadow DOM popup that is invisible to the host page.
  *
- * WHY SHADOW DOM:
- *   When our extension runs on a real website, the page's CSS could accidentally
- *   style our popup (or our popup's CSS could break the page). Shadow DOM creates
- *   a boundary — styles don't leak in or out. The page's JavaScript also can't
- *   querySelector into our shadow tree, so frameworks and MutationObservers
- *   won't see our popup's internal DOM changes.
- *
- *   The ONE thing the page CAN see is the host element (<div id="asl-popup-host">).
- *   That's one single DOM mutation, and it's an empty div — harmless.
- *
- * WHAT YOU NEED TO LEARN:
- *   1. Shadow DOM — what it is, how to attach one, open vs closed mode
- *   2. caretPositionFromPoint / caretRangeFromPoint — hover detection without
- *      DOM event listeners on highlighted text
- *   3. pointer-events: none — why the popup needs it (so the mouse "passes through")
- *
- * RESOURCES:
- *   - MDN Shadow DOM guide (start here):
- *     https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_shadow_DOM
- *
- *   - MDN attachShadow:
- *     https://developer.mozilla.org/en-US/docs/Web/API/Element/attachShadow
- *
- *   - MDN caretPositionFromPoint (Firefox):
- *     https://developer.mozilla.org/en-US/docs/Web/API/Document/caretPositionFromPoint
- *
- *   - MDN caretRangeFromPoint (Chrome/Safari):
- *     https://developer.mozilla.org/en-US/docs/Web/API/Document/caretRangeFromPoint
- *
- *   - Shadow DOM styling guide (how styles are scoped):
- *     https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_shadow_DOM#applying_styles
- *
- *   - Google web.dev Shadow DOM intro:
- *     https://web.dev/articles/shadowdom-v1
+ * Behavior only (lifecycle, hover detection, positioning, rendering).
+ * Styles live in popup-overlay.styles.js, DOM structure in popup-overlay.template.js.
+ * Learning notes & pseudocode saved in notes/popup-overlay-pseudocode.md.
  */
 
 export class PopupOverlayView {
-
   constructor() {
-    this._host = null;       // the <div> we attach the shadow to (lives in page DOM)
-    this._shadow = null;     // the ShadowRoot (invisible to page scripts)
-    this._popup = null;      // the actual popup container (inside the shadow)
-    this._video = null;      // the <video> element (inside the shadow)
-    this._lastWord = '';     // debounce: don't re-render if same word
+    this._host = null; // the <div> we attach the shadow to (lives in page DOM)
+    this._shadow = null; // the ShadowRoot (invisible to page scripts)
+    this._popup = null; // the actual popup container (inside the shadow)
+    this._video = null; // the <video> element (inside the shadow)
+    this._isPinned = false;
+    this._lastWord = ""; // debounce: don't re-render if same word
+    this._hideTimeout = null; // for delayed hiding
 
-    this._onHoverWord = null;  // callback the presenter sets
-    this._onLeaveWord = null;  // callback the presenter sets
+    this._onHoverWord = null; // callback the presenter sets
+    this._onLeaveWord = null; // callback the presenter sets
+    this._mouseMoveHandler = null; // stored for removal in stopHoverDetection
   }
-
 
   // ─── LIFECYCLE ──────────────────────────────────────────────────────
 
   /**
    * Create the Shadow DOM host and attach the popup inside it.
-   *
-   * PSEUDOCODE:
-   *   1. Create a <div> element — this is the "host" that lives in the real DOM
-   *      - Give it an id like "asl-popup-host"
-   *      - Style it as position:fixed, top:0, left:0, width:0, height:0
-   *        (it's just an anchor point, not visible itself)
-   *
-   *   2. Attach a shadow root to it:
-   *        this._shadow = this._host.attachShadow({ mode: 'closed' })
-   *
-   *      WHY 'closed'?
-   *        - 'open'  = page JS can access it via element.shadowRoot
-   *        - 'closed' = element.shadowRoot returns null
-   *        For an extension, 'closed' is safer — the page can't inspect our popup.
-   *        But 'open' is easier to debug (you can see it in DevTools).
-   *        Start with 'open' while developing, switch to 'closed' for production.
-   *
-   *   3. Inside the shadow, create:
-   *      - A <style> element with all popup CSS (positioned, styled however you want)
-   *      - A popup container <div>
-   *      - A <video> element inside it
-   *      - Any other elements you need (title, definitions, etc.)
-   *
-   *      IMPORTANT: because this is inside a shadow root, you can use any class names
-   *      without worrying about collisions with the page. ".popup" is fine.
-   *
-   *   4. Append the host to document.body
-   *      — this is the ONLY mutation the page sees
-   *
-   * RESOURCE: https://developer.mozilla.org/en-US/docs/Web/API/Element/attachShadow
    */
   create() {
-    // TODO: implement the 4 steps above
-    //
-    // TIP: look at popup-view.js for the DOM structure you already have.
-    //      The elements are the same — you're just putting them inside a shadow
-    //      instead of directly in document.body.
+    this._host = document.createElement("div");
+    this._host.id = "asl-video-popup-host";
+    this._shadow = this._host.attachShadow({ mode: "open" });
+    this._shadow.innerHTML = createPopupTemplate();
+    this._popup = this._shadow.querySelector(".asl-popup");
+    this._video = this._shadow.querySelector(".asl-popup-video");
+    document.body.appendChild(this._host);
   }
 
   /**
    * Clean up: remove the host element from the page.
-   *
-   * PSEUDOCODE:
-   *   1. this._host.remove()
-   *   2. Null out references
    */
   destroy() {
-    // TODO: implement
+    this._host.remove();
+    this._host = null;
+    this._shadow = null;
+    this._popup = null;
+    this._video = null;
   }
-
 
   // ─── HOVER DETECTION ───────────────────────────────────────────────
 
   /**
    * Set up mousemove-based word detection.
    *
-   * CONTEXT:
-   *   Since highlights (from HighlightOverlayView) are NOT DOM elements,
-   *   we can't attach mouseenter/mouseleave to them. Instead, we listen
-   *   for mousemove on the document and figure out which word (if any)
-   *   the cursor is over.
-   *
-   * PSEUDOCODE:
-   *   1. Add a 'mousemove' listener on document
-   *
-   *   2. In the handler:
-   *      a. Get the text node + offset under the cursor:
-   *
-   *         FIREFOX:
-   *           const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
-   *           node = pos.offsetNode;   offset = pos.offset;
-   *
-   *         CHROME/SAFARI:
-   *           const range = document.caretRangeFromPoint(e.clientX, e.clientY);
-   *           node = range.startContainer;   offset = range.startOffset;
-   *
-   *      b. If node is not a TEXT_NODE, call onLeaveWord and return
-   *
-   *      c. Extract the full word at that offset:
-   *           const before = text.slice(0, offset).match(/\w+$/);
-   *           const after  = text.slice(offset).match(/^\w+/);
-   *           const word   = (before?.[0] || '') + (after?.[0] || '');
-   *
-   *      d. If word is different from this._lastWord:
-   *           - If there was a previous word, call this._onLeaveWord(prevWord)
-   *           - If new word is not empty, call this._onHoverWord(word, e.clientX, e.clientY)
-   *           - Update this._lastWord
-   *
-   * PERFORMANCE NOTE:
-   *   mousemove fires A LOT. Two ways to keep it fast:
-   *     1. The word comparison (step d) already avoids unnecessary work
-   *     2. If needed, throttle the handler (e.g., only run every 50ms)
-   *        https://developer.mozilla.org/en-US/docs/Web/API/Document/mousemove_event
-   *
-   * RESOURCE: https://developer.mozilla.org/en-US/docs/Web/API/Document/caretPositionFromPoint
+   * Uses caretPositionFromPoint/caretRangeFromPoint to detect which
+   * word the cursor is over (since CSS Highlight API highlights aren't
+   * DOM elements we can attach listeners to).
    *
    * @param {Function} onHoverWord — callback(word, clientX, clientY)
    * @param {Function} onLeaveWord — callback(word)
@@ -158,68 +66,191 @@ export class PopupOverlayView {
     this._onHoverWord = onHoverWord;
     this._onLeaveWord = onLeaveWord;
 
-    // TODO: implement the mousemove listener described above
-    //
-    // HINT: store a reference to the listener function so you can
-    //       remove it in stopHoverDetection()
+    this._mouseMoveHandler = (e) => {
+      // Get text node + offset under cursor (browser-compatible)
+      let node, offset;
+
+      if (document.caretPositionFromPoint) {
+        // Standard API (Firefox, modern Chrome)
+        const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+        if (!pos) return;
+        node = pos.offsetNode;
+        offset = pos.offset;
+      } else if (document.caretRangeFromPoint) {
+        // Legacy fallback (older Chrome/Safari)
+        const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+        if (!range) return;
+        node = range.startContainer;
+        offset = range.startOffset;
+      } else {
+        return; // Browser doesn't support either API
+      }
+
+      // Only process text nodes
+      if (node.nodeType !== Node.TEXT_NODE) {
+        if (this._lastWord) {
+          this._onLeaveWord?.(this._lastWord);
+          this._lastWord = "";
+        }
+        return;
+      }
+
+      // Extract the full word at cursor position
+      const text = node.textContent;
+      const before = text.slice(0, offset).match(/\w+$/);
+      const after = text.slice(offset).match(/^\w+/);
+      const word = (before?.[0] || "") + (after?.[0] || "");
+
+      // Only fire callbacks if word changed
+      if (word !== this._lastWord) {
+        if (this._lastWord) {
+          this._onLeaveWord?.(this._lastWord);
+        }
+        if (word) {
+          this._onHoverWord?.(word, e.clientX, e.clientY);
+        }
+        this._lastWord = word;
+      }
+    };
+
+    document.addEventListener("mousemove", this._mouseMoveHandler);
   }
 
   /**
    * Remove the mousemove listener.
    */
   stopHoverDetection() {
-    // TODO: remove the listener you stored in startHoverDetection
+    if (this._mouseMoveHandler) {
+      document.removeEventListener("mousemove", this._mouseMoveHandler);
+      this._mouseMoveHandler = null;
+    }
+    this._lastWord = "";
   }
-
+  
 
   // ─── POPUP DISPLAY ─────────────────────────────────────────────────
 
   /**
    * Show the popup near the cursor position.
    *
-   * PSEUDOCODE:
-   *   1. Set popup display to 'block'
-   *   2. Position it relative to clientX/clientY
-   *      — same logic as popup-view.js position(), but using
-   *        fixed positioning (clientX/clientY) instead of element offsets
-   *   3. Make sure it doesn't overflow the viewport edges
-   *
    * @param {number} clientX — cursor x position (from mousemove event)
    * @param {number} clientY — cursor y position
    */
   show(clientX, clientY) {
-    // TODO: implement
+    if (!this._popup) return;
+
+    this._popup.style.display = "block";
+
+    const { width, height, offset } = CONFIG.popup;
+
+    let x = clientX + offset;
+    let y = clientY + offset;
+
+    // Prevent overflow off right edge
+    if (x + width > window.innerWidth) {
+      x = clientX - width - offset;
+    }
+
+    // Prevent overflow off bottom edge
+    if (y + height > window.innerHeight) {
+      y = clientY - height - offset;
+    }
+
+    this._popup.style.left = x + "px";
+    this._popup.style.top = y + "px";
   }
 
   /**
-   * Hide the popup.
+   * Hide the popup with a small delay to prevent flickering.
    */
   hide() {
-    // TODO: implement
-    //
-    // TIP: consider a small delay before hiding (like the current 200ms
-    //      hideDelay in config.js) so the popup doesn't flicker when the
-    //      user moves between words
+    if (this._isPinned) return;
+
+    clearTimeout(this._hideTimeout);
+    this._hideTimeout = setTimeout(() => {
+      if (this._popup) {
+        this._popup.style.display = "none";
+      }
+      // Clean up video to free resources
+      if (this._video) {
+        this._video.pause();
+        this._video.removeAttribute("src");
+        this._video.load();
+      }
+    }, CONFIG.timing.hideDelay);
+  }
+
+  /**
+   * Cancel a pending hide (e.g., when user hovers back quickly).
+   */
+  cancelHide() {
+    clearTimeout(this._hideTimeout);
   }
 
   /**
    * Load a video into the popup's <video> element.
    *
-   * Same approach as popup-view.js — set src to the blob URL from
-   * your LRU cache, call play().
-   *
    * @param {string} blobUrl — the cached blob URL for this word's video
    */
   loadVideo(blobUrl) {
-    // TODO: implement
+    if (!this._video) return;
+
+    if (!blobUrl) {
+      this._video.removeAttribute("src");
+      this._video.load();
+      return;
+    }
+
+    this._video.src = blobUrl;
+    this._video.load();
+    this._video.play().catch((err) => {
+      // AbortError is expected when user moves away quickly - ignore it
+      if (err.name !== "AbortError") {
+        console.warn("Video play failed:", err);
+      }
+    });
   }
 
   /**
    * Update the popup content (word title, definitions, etc.)
    *
-   * @param {object} state — the AppState, same as popup-view.js render()
+   * @param {object} state — { currentWord, currentEntry, isLoading, hasVideo }
    */
   render(state) {
-    // TODO: implement — reference popup-view.js render()
+    if (!this._popup) return;
+
+    // Update word display
+    const wordEl = this._shadow.querySelector(".asl-popup-word");
+    if (wordEl) wordEl.textContent = state.currentWord || "";
+
+    // Update meanings and lexical class
+    const meaningsEl = this._shadow.querySelector(".asl-popup-meanings");
+    const lexicalEl = this._shadow.querySelector(".asl-popup-lexical-class");
+    const personHintEl = this._shadow.querySelector(".asl-popup-person-hint");
+
+    if (state.currentEntry) {
+      if (meaningsEl) meaningsEl.textContent = state.currentEntry.meanings || "";
+      if (lexicalEl) lexicalEl.textContent = state.currentEntry.lexicalClass || "";
+      if (personHintEl) {
+        personHintEl.style.display = state.currentEntry.personCombinable
+          ? "block"
+          : "none";
+      }
+    } else {
+      if (meaningsEl) meaningsEl.textContent = "";
+      if (lexicalEl) lexicalEl.textContent = "";
+      if (personHintEl) personHintEl.style.display = "none";
+    }
+
+    // Update state classes (loading, has-video, no-video)
+    this._popup.classList.remove("loading", "has-video", "no-video");
+
+    if (state.isLoading) {
+      this._popup.classList.add("loading");
+    } else if (state.hasVideo) {
+      this._popup.classList.add("has-video");
+    } else {
+      this._popup.classList.add("no-video");
+    }
   }
 }

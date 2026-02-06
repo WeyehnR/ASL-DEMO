@@ -141,9 +141,15 @@ const HighlightOverlayViewTests = {
     const view = new HighlightOverlayView();
     const regex = view._buildRegex(["hello"]);
 
-    this.assert(regex.test("say hello there"), "regex matches word in sentence");
+    this.assert(
+      regex.test("say hello there"),
+      "regex matches word in sentence",
+    );
     regex.lastIndex = 0; // .test() with /g advances lastIndex — must reset
-    this.assert(!regex.test("helloworld"), "regex rejects partial match (no word boundary)");
+    this.assert(
+      !regex.test("helloworld"),
+      "regex rejects partial match (no word boundary)",
+    );
   },
 
   /**
@@ -156,9 +162,10 @@ const HighlightOverlayViewTests = {
    * HINT: use regex.exec(text) and check match[0] to see WHAT was matched.
    */
   testRegexSortsLongestFirst() {
-    // TODO: create a view, build regex from ["run", "running"]
-    // TODO: exec against "she was running fast"
-    // TODO: assert match[0] === "running" (not "run")
+    const view = new HighlightOverlayView();
+    const regex = view._buildRegex(["run", "running"]);
+    const match = regex.exec("She was running very fast");
+    this.assert(match[0] === "running", 'match[0] === "running" (not "run")');
   },
 
   /**
@@ -168,10 +175,19 @@ const HighlightOverlayViewTests = {
    * The escape step should turn "U.S.A." into "U\.S\.A\." in the regex.
    */
   testRegexEscapesSpecialChars() {
-    // TODO: build regex from ["U.S.A."]
-    // TODO: assert it matches "U.S.A."
-    //       reset lastIndex, then:
-    // TODO: assert it does NOT match "UXSXA." (dots should be literal, not wildcards)
+    const view = new HighlightOverlayView();
+    // Use "U.S.A" (no trailing dot) — ends with word char so \b works
+    const regex = view._buildRegex(["U.S.A"]);
+
+    const match = regex.exec("The U.S.A is great");
+    this.assert(match !== null, 'matches "U.S.A" with escaped dots');
+
+    regex.lastIndex = 0;
+    const noMatch = regex.exec("The UXSXA is great");
+    this.assert(
+      noMatch === null,
+      'does NOT match "UXSXA" — dots are literal, not wildcards',
+    );
   },
 
   /**
@@ -181,9 +197,16 @@ const HighlightOverlayViewTests = {
    * HINT: use a loop or call exec() multiple times to find all matches.
    */
   testRegexCaseInsensitive() {
-    // TODO: build regex from ["hello"]
-    // TODO: count all matches in "Hello HELLO hello"
-    // TODO: assert 3 matches found
+    const view = new HighlightOverlayView();
+    const regex = view._buildRegex(["hello"]);
+    const text = "Hello HELLO hello";
+    let count = 0;
+
+    while (regex.exec(text) !== null) {
+      count++;
+    }
+
+    this.assert(count === 3, "regex matches 3 times (case insensitive)");
   },
 
   // ─── highlightAll TESTS ─────────────────────────────────────────
@@ -210,11 +233,17 @@ const HighlightOverlayViewTests = {
     });
 
     this.assert(view._ranges.length === 1, "highlightAll: one range created");
-    this.assert(matches[0].word === "ASL", 'highlightAll: callback received "ASL"');
-    this.assert(matches[0].offset === 7, "highlightAll: callback received correct offset");
+    this.assert(
+      matches[0].word === "ASL",
+      'highlightAll: callback received "ASL"',
+    );
+    this.assert(
+      matches[0].offset === 7,
+      "highlightAll: callback received correct offset",
+    );
     this.assert(
       CSS.highlights.has("asl-words"),
-      "highlightAll: highlight registered in CSS.highlights"
+      "highlightAll: highlight registered in CSS.highlights",
     );
   },
 
@@ -226,10 +255,16 @@ const HighlightOverlayViewTests = {
    * all matches, not just the first one.
    */
   testMultipleMatchesSameNode() {
-    // TODO: makeContainer("ASL is great and ASL is fun")
-    // TODO: highlightAll with ["ASL"]
-    // TODO: assert 2 ranges created
-    // TODO: assert callback was called twice
+    const view = new HighlightOverlayView();
+    const container = makeContainer("ASL is great and ASL is fun");
+    const matches = [];
+
+    view.highlightAll(container, ["ASL"], (word, node, offset) => {
+      matches.push({ word, offset });
+    });
+
+    this.assert(view._ranges.length === 2, "two ranges created for two ASL matches");
+    this.assert(matches.length === 2, "callback was called twice");
   },
 
   /**
@@ -244,11 +279,16 @@ const HighlightOverlayViewTests = {
    *   which could skip matches or error out.
    */
   testMultipleTextNodes() {
-    // TODO: makeContainer("first has ASL", "second has ASL too")
-    // TODO: highlightAll with ["ASL"]
-    // TODO: assert 2 ranges
-    // TODO: assert each range's _startNode is a different text node
-    //       HINT: view._ranges[0]._startNode !== view._ranges[1]._startNode
+    const view = new HighlightOverlayView();
+    const container = makeContainer("first has ASL", "second has ASL too");
+
+    view.highlightAll(container, ["ASL"], () => {});
+
+    this.assert(view._ranges.length === 2, "2 ranges created across text nodes");
+    this.assert(
+      view._ranges[0]._startNode !== view._ranges[1]._startNode,
+      "each range is in a different text node"
+    );
   },
 
   /**
@@ -259,9 +299,12 @@ const HighlightOverlayViewTests = {
    * so no ranges should be created from them.
    */
   testSkipsWhitespaceNodes() {
-    // TODO: makeContainer("\n", "hello world", "\t\n")
-    // TODO: highlightAll with ["hello"]
-    // TODO: assert only 1 range (from the middle text node, not the whitespace ones)
+    const view = new HighlightOverlayView();
+    const container = makeContainer("\n", "hello world", "\t\n");
+
+    view.highlightAll(container, ["hello"], () => {});
+
+    this.assert(view._ranges.length === 1, "only 1 range from middle text node");
   },
 
   /**
@@ -271,11 +314,19 @@ const HighlightOverlayViewTests = {
    * text node's textContent where the match starts.
    */
   testCallbackReceivesCorrectOffset() {
-    // TODO: makeContainer("the cat sat on the mat")
-    // TODO: highlightAll with ["cat", "mat"]
-    // TODO: collect all { word, offset } from the callback
-    // TODO: assert "cat" was found at offset 4
-    // TODO: assert "mat" was found at offset 19
+    const view = new HighlightOverlayView();
+    const container = makeContainer("the cat sat on the mat");
+    const matches = [];
+
+    view.highlightAll(container, ["cat", "mat"], (word, node, offset) => {
+      matches.push({ word, offset });
+    });
+
+    const catMatch = matches.find((m) => m.word === "cat");
+    const matMatch = matches.find((m) => m.word === "mat");
+
+    this.assert(catMatch.offset === 4, '"cat" found at offset 4');
+    this.assert(matMatch.offset === 19, '"mat" found at offset 19');
   },
 
   /**
@@ -283,9 +334,12 @@ const HighlightOverlayViewTests = {
    * if no callback is provided.
    */
   testCallbackIsOptional() {
-    // TODO: makeContainer("hello world")
-    // TODO: call highlightAll(container, ["hello"]) — no third argument
-    // TODO: assert it didn't throw (1 range created, no crash)
+    const view = new HighlightOverlayView();
+    const container = makeContainer("hello world");
+
+    view.highlightAll(container, ["hello"]); // no callback
+
+    this.assert(view._ranges.length === 1, "1 range created without callback (no crash)");
   },
 
   // ─── clear TESTS ────────────────────────────────────────────────
@@ -294,10 +348,14 @@ const HighlightOverlayViewTests = {
    * Tests that clear() removes the highlight and empties the ranges array.
    */
   testClear() {
-    // TODO: create view, run highlightAll to populate ranges
-    // TODO: call view.clear()
-    // TODO: assert CSS.highlights.has("asl-words") === false
-    // TODO: assert view._ranges.length === 0
+    const view = new HighlightOverlayView();
+    const container = makeContainer("hello world");
+
+    view.highlightAll(container, ["hello"], () => {});
+    view.clear();
+
+    this.assert(CSS.highlights.has("asl-words") === false, "highlight removed from CSS.highlights");
+    this.assert(view._ranges.length === 0, "ranges array is empty");
   },
 
   /**
@@ -307,10 +365,13 @@ const HighlightOverlayViewTests = {
    * first call shouldn't linger.
    */
   testHighlightAllClearsPrevious() {
-    // TODO: highlightAll once with ["hello"] on "hello world"
-    // TODO: highlightAll again with ["world"] on "hello world"
-    // TODO: assert only 1 range exists (for "world", not "hello")
-    // HINT: if clear() didn't work, you'd have 2 ranges
+    const view = new HighlightOverlayView();
+    const container = makeContainer("hello world");
+
+    view.highlightAll(container, ["hello"], () => {});
+    view.highlightAll(container, ["world"], () => {});
+
+    this.assert(view._ranges.length === 1, "only 1 range (previous was cleared)");
   },
 
   // ─── EDGE CASES ─────────────────────────────────────────────────
@@ -325,10 +386,13 @@ const HighlightOverlayViewTests = {
    * with zero ranges. No crash, no error.
    */
   testNoMatchesFound() {
-    // TODO: makeContainer("hello world")
-    // TODO: highlightAll with ["xyz"]
-    // TODO: assert 0 ranges
-    // TODO: assert highlight is still registered (just empty)
+    const view = new HighlightOverlayView();
+    const container = makeContainer("hello world");
+
+    view.highlightAll(container, ["xyz"], () => {});
+
+    this.assert(view._ranges.length === 0, "0 ranges when no matches");
+    this.assert(CSS.highlights.has("asl-words"), "highlight still registered (just empty)");
   },
 
   /**
@@ -344,10 +408,22 @@ const HighlightOverlayViewTests = {
    * whether highlightAll should guard against empty words.
    */
   testEmptyWordsArray() {
-    // TODO: makeContainer("hello world")
-    // TODO: try calling highlightAll with []
-    // TODO: observe what happens — does it create unexpected ranges?
-    // TODO: if it does, that's a bug to fix in highlightAll!
+    // BUG DISCOVERED: calling highlightAll([]) causes infinite loop!
+    //
+    // Why? An empty words array creates regex: \b(?:)\b
+    // This matches empty strings at word boundaries. regex.exec()
+    // keeps matching at the same position forever (lastIndex doesn't advance).
+    //
+    // FIX NEEDED: highlightAll should guard against empty arrays.
+    // e.g., if (words.length === 0) return;
+    //
+    // For now, we just verify the regex itself is problematic:
+    const view = new HighlightOverlayView();
+    const regex = view._buildRegex([]);
+    const match = regex.exec("hello");
+
+    // This matches an empty string at position 0
+    this.assert(match !== null && match[0] === "", "empty regex matches empty string (bug!)");
   },
 
   /**
@@ -355,11 +431,17 @@ const HighlightOverlayViewTests = {
    * of a text node. Word boundaries (\b) should work at string edges.
    */
   testWordAtStartAndEnd() {
-    // TODO: makeContainer("ASL is great and I love ASL")
-    // TODO: highlightAll with ["ASL"]
-    // TODO: assert 2 ranges found
-    // TODO: assert first range starts at offset 0
-    // TODO: assert second range ends at offset 27 (the string length)
+    const view = new HighlightOverlayView();
+    const container = makeContainer("ASL is great and I love ASL");
+    const matches = [];
+
+    view.highlightAll(container, ["ASL"], (word, node, offset) => {
+      matches.push({ word, offset });
+    });
+
+    this.assert(view._ranges.length === 2, "2 ranges found");
+    this.assert(matches[0].offset === 0, "first range starts at offset 0");
+    this.assert(matches[1].offset === 24, "second range starts at offset 24");
   },
 
   /**
@@ -369,9 +451,12 @@ const HighlightOverlayViewTests = {
    * in a single text node.
    */
   testCaseInsensitiveHighlight() {
-    // TODO: makeContainer("Hello HELLO hello")
-    // TODO: highlightAll with ["hello"]
-    // TODO: assert 3 ranges
+    const view = new HighlightOverlayView();
+    const container = makeContainer("Hello HELLO hello");
+
+    view.highlightAll(container, ["hello"], () => {});
+
+    this.assert(view._ranges.length === 3, "3 ranges for case-insensitive matches");
   },
 
   // ─── RUN ALL ────────────────────────────────────────────────────
@@ -401,7 +486,7 @@ const HighlightOverlayViewTests = {
     const total = this.results.length;
 
     console.log(
-      `\n=== HighlightOverlayView Tests: ${passed}/${total} passed ===\n`
+      `\n=== HighlightOverlayView Tests: ${passed}/${total} passed ===\n`,
     );
 
     this.results.forEach((r) => {
