@@ -5,6 +5,8 @@
  * Learning notes & pseudocode saved in notes/highlight-overlay-pseudocode.md.
  */
 
+import { PerfLogger } from "../utils/PerfLogger.js";
+
 export class HighlightOverlayView {
   constructor() {
     // The name used to register our highlight with CSS.highlights
@@ -34,11 +36,18 @@ export class HighlightOverlayView {
       return;
     }
 
+    PerfLogger.time("  buildRegex");
     const regex = this._buildRegex(words);
+    PerfLogger.timeEnd("  buildRegex", { words: words.length });
+
     regex.lastIndex = 0;
+
+    PerfLogger.time("  TreeWalker + regex + Range creation");
+    let textNodeCount = 0;
     const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
 
     while (walker.nextNode()) {
+      textNodeCount++;
       const textNode = walker.currentNode;
       let match;
       while ((match = regex.exec(textNode.textContent)) !== null) {
@@ -51,10 +60,16 @@ export class HighlightOverlayView {
         if (onEachMatch) onEachMatch(match[0], textNode, match.index);
       }
     }
+    PerfLogger.timeEnd("  TreeWalker + regex + Range creation", {
+      textNodes: textNodeCount,
+      ranges: this._ranges.length,
+    });
 
+    PerfLogger.time("  Highlight() registration");
     const highlight = new Highlight();
     for (const r of this._ranges) highlight.add(r);// for content heavy sites in my e2e test, this would preven stack overflow
     CSS.highlights.set(this._highlightName, highlight);
+    PerfLogger.timeEnd("  Highlight() registration", { ranges: this._ranges.length });
   }
 
   /**

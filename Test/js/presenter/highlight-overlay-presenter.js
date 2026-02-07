@@ -15,6 +15,7 @@ import { wordResolver } from "../model/word-resolver.js";
 import { AppState } from "../model/state.js";
 import { HighlightOverlayView } from "../view/highlight-overlay-view.js";
 import { ResultView } from "../view/result-view.js";
+import { PerfLogger } from "../utils/PerfLogger.js";
 
 export const HighlightOverlayPresenter = {
   // The view instance
@@ -63,23 +64,16 @@ export const HighlightOverlayPresenter = {
    * @returns {Set<string>} - Set of base words that were matched
    */
   highlightAllGlossaryWords(container) {
+    PerfLogger.time("TOTAL highlight pipeline");
+
     this.matches = [];
     this.currentMatchIndex = -1;
     this.matchedBaseWords.clear();
     AppState.setHighlightMode("all");
 
-    // TODO: Replace the brute-force approach below with prefilterWords()
-    //   BEFORE (brute force): builds regex from ALL glossary + inflection words
-    //   AFTER  (pre-filter):  builds regex from only words found on this page
-    //
-    //   Change these 3 lines:
-    //     const baseWords = Object.keys(VideoData.wordToVideos);
-    //     const inflectedForms = Object.keys(wordResolver.inflectionMap);
-    //     const allWords = baseWords.concat(inflectedForms);
-    //   To just:
-    //     const allWords = this.prefilterWords(container);
-
+    PerfLogger.time("prefilterWords");
     const allWords = this.prefilterWords(container);
+    PerfLogger.timeEnd("prefilterWords", { words: allWords.length });
 
     // Guard against empty words array (causes infinite loop)
     if (allWords.length === 0) {
@@ -87,6 +81,7 @@ export const HighlightOverlayPresenter = {
       return this.matchedBaseWords;
     }
 
+    PerfLogger.time("view.highlightAll");
     this.view.highlightAll(container, allWords, (matchedText, textNode, offset) => {
       // Find the base word for this match
       const baseWord = wordResolver.findBaseWord(matchedText) || matchedText.toLowerCase();
@@ -96,8 +91,15 @@ export const HighlightOverlayPresenter = {
       const range = this.view._ranges[this.view._ranges.length - 1];
       this.matches.push({ word: matchedText, baseWord, range, textNode, offset });
     });
+    PerfLogger.timeEnd("view.highlightAll", {
+      matches: this.matches.length,
+      uniqueBaseWords: this.matchedBaseWords.size,
+      ranges: this.view._ranges.length,
+    });
 
     ResultView.clear();
+
+    PerfLogger.timeEnd("TOTAL highlight pipeline");
     return this.matchedBaseWords;
   },
 

@@ -1,5 +1,6 @@
 import { CONFIG } from "../config.js";
 import { createPopupTemplate } from "./popup-overlay.template.js";
+import { PerfLogger } from "../utils/PerfLogger.js";
 
 /**
  * PopupOverlayView — A Shadow DOM popup that is invisible to the host page.
@@ -66,7 +67,11 @@ export class PopupOverlayView {
     this._onHoverWord = onHoverWord;
     this._onLeaveWord = onLeaveWord;
 
+    PerfLogger.startMouseMoveTracking();
+
     this._mouseMoveHandler = (e) => {
+      const t0 = performance.now();
+
       // Get text node + offset under cursor (browser-compatible)
       let node, offset;
 
@@ -92,6 +97,7 @@ export class PopupOverlayView {
           this._onLeaveWord?.(this._lastWord);
           this._lastWord = "";
         }
+        PerfLogger.trackMouseMove(performance.now() - t0);
         return;
       }
 
@@ -132,6 +138,8 @@ export class PopupOverlayView {
         }
         this._lastWord = word;
       }
+
+      PerfLogger.trackMouseMove(performance.now() - t0);
     };
 
     document.addEventListener("mousemove", this._mouseMoveHandler);
