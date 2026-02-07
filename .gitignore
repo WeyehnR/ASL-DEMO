@@ -22,6 +22,9 @@ nul
 # Personal docs
 ARCHITECTURE.md
 NOTES.md
+brainstorm.txt
+notes/
+Pictures/
 
 # Logs
 *.log
@@ -32,3 +35,4 @@ NOTES.md
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+e2e/screenshots/

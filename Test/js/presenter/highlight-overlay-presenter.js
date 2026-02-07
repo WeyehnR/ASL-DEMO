@@ -35,6 +35,42 @@ export const HighlightOverlayPresenter = {
   },
 
   /**
+   * Pre-filter: scan page text to find only glossary words that actually appear,
+   * then expand to include their inflections.
+   *
+   * WHY: Instead of building a regex from ALL ~2,000 glossary words, we:
+   *
+   *   1. Tokenize the page text into unique words (Set eliminates duplicates)
+   *   2. Check each token against the glossary with O(1) hash lookups
+   *   3. Expand matched base words to include inflected forms
+   *   4. Return a much smaller word list (typically ~200 vs ~2,000)
+   *
+   * This is also linguistically correct for ASL — words not in the glossary
+   * (articles, most prepositions) get filtered out naturally.
+   *
+   * @param {HTMLElement} container - The element whose text to scan
+   * @returns {string[]} - Only the words (base + inflections) that appear on page
+   */
+  prefilterWords(container) {
+    // TODO 1: Get the full text content from the container
+    //   HINT: container.textContent gives you all text in one string
+
+    // TODO 2: Use wordResolver.getWordsInText(text) to find which base words appear
+    //   This tokenizes the text and does O(1) lookups against the glossary
+    //   Returns an array of base words like ["boy", "throw", "ball"]
+
+    // TODO 3: Expand each base word to include its inflected forms
+    //   Use wordResolver.getAllForms(baseWord) for each matched base word
+    //   getAllForms("run") → ["run", "running", "runs", "ran"]
+    //   Collect all forms into a single array (use a Set to avoid duplicates)
+
+    // TODO 4: Return the filtered word list as an array
+    //   This should be MUCH smaller than the full glossary
+
+    return []; // placeholder — replace with your implementation
+  },
+
+  /**
    * Highlight all words from the glossary in a single pass.
    *
    * @param {HTMLElement} container - The element to highlight within
@@ -45,6 +81,17 @@ export const HighlightOverlayPresenter = {
     this.currentMatchIndex = -1;
     this.matchedBaseWords.clear();
     AppState.setHighlightMode("all");
+
+    // TODO: Replace the brute-force approach below with prefilterWords()
+    //   BEFORE (brute force): builds regex from ALL glossary + inflection words
+    //   AFTER  (pre-filter):  builds regex from only words found on this page
+    //
+    //   Change these 3 lines:
+    //     const baseWords = Object.keys(VideoData.wordToVideos);
+    //     const inflectedForms = Object.keys(wordResolver.inflectionMap);
+    //     const allWords = baseWords.concat(inflectedForms);
+    //   To just:
+    //     const allWords = this.prefilterWords(container);
 
     const baseWords = Object.keys(VideoData.wordToVideos);
     const inflectedForms = Object.keys(wordResolver.inflectionMap);

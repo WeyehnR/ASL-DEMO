@@ -25,6 +25,7 @@ async function loadGlossaryWords() {
 
 // Helper: inject CSS Highlight API into the page
 // Processes words in chunks to avoid regex stack overflow on large word lists
+/** @param {{ words: string[], containerSelector: string | null }} params */
 function injectHighlighting({ words, containerSelector }) {
   const container = containerSelector
     ? document.querySelector(containerSelector) || document.body
@@ -122,6 +123,38 @@ test("highlights on CNN — document.body shows nav/sidebar noise", async ({
 
   await page.screenshot({
     path: "e2e/screenshots/cnn-no-readability.png",
+    fullPage: false,
+  });
+});
+
+test("highlights on Time.com long-form article (document.body)", async ({
+  page,
+}) => {
+  const allWords = await loadGlossaryWords();
+
+  await page.goto(
+    "https://time.com/7346146/artemis-ii-launch-nasa-astronauts-moon-mission/",
+    { waitUntil: "domcontentloaded", timeout: 30000 }
+  );
+
+  // Wait for article body to render (lazy-loaded content)
+  await page.waitForSelector("article, .article-content, .padded-container", {
+    timeout: 10000,
+  }).catch(() => {});
+
+  // Scroll past the hero image to reach article text
+  await page.evaluate(() => window.scrollBy(0, 800));
+  await page.waitForTimeout(1000);
+
+  const count = await page.evaluate(injectHighlighting, {
+    words: allWords,
+    containerSelector: null,
+  });
+  console.log(`Time.com article (document.body): ${count} highlights`);
+  expect(count).toBeGreaterThan(0);
+
+  await page.screenshot({
+    path: "e2e/screenshots/time-longform.png",
     fullPage: false,
   });
 });
