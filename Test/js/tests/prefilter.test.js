@@ -192,12 +192,13 @@ const PrefilterTests = {
     const container = makeContainer("the boy was running to the ball");
     const result = HighlightOverlayPresenter.prefilterWords(container);
 
-    // TODO: Fill in assertions
-    //   "running" appears in text → base word "run" is found
-    //   getAllForms("run") → ["run", "running", "runs", "ran"]
-    //   So result should contain: "run", "running", "runs", "ran", "ball"
-    //
-    //   HINT: check result.includes() for each expected word
+    // "running" appears in text → base word "run" is found
+    // getAllForms("run") → ["run", "running", "runs", "ran"]
+    this.assert(result.includes("run"), "result includes base word 'run'");
+    this.assert(result.includes("running"), "result includes inflection 'running'");
+    this.assert(result.includes("runs"), "result includes inflection 'runs'");
+    this.assert(result.includes("ran"), "result includes inflection 'ran'");
+    this.assert(result.includes("ball"), "result includes 'ball'");
   },
 
   /**
@@ -216,9 +217,16 @@ const PrefilterTests = {
     const container = makeContainer("the cat was sitting on the mat");
     const result = HighlightOverlayPresenter.prefilterWords(container);
 
-    // TODO: Fill in assertions
-    //   "the", "was", "on", "mat" should NOT be in result
-    //   "cat", "sit", "sitting", "sat" SHOULD be in result
+    // Glossary words and their inflections should be included
+    this.assert(result.includes("cat"), "result includes 'cat'");
+    this.assert(result.includes("sit"), "result includes 'sit'");
+    this.assert(result.includes("sitting"), "result includes 'sitting'");
+    this.assert(result.includes("sat"), "result includes 'sat'");
+    // Non-glossary words should be excluded
+    this.assert(!result.includes("the"), "result does NOT include 'the'");
+    this.assert(!result.includes("was"), "result does NOT include 'was'");
+    this.assert(!result.includes("on"), "result does NOT include 'on'");
+    this.assert(!result.includes("mat"), "result does NOT include 'mat'");
   },
 
   /**
@@ -240,8 +248,8 @@ const PrefilterTests = {
     const container = makeContainer("run running runs");
     const result = HighlightOverlayPresenter.prefilterWords(container);
 
-    // TODO: Fill in assertion
-    //   HINT: new Set(result).size === result.length means no duplicates
+    const unique = new Set(result).size;
+    this.assert(unique === result.length, "no duplicate words in result");
   },
 
   // ─── EDGE CASES ─────────────────────────────────────────────────
@@ -258,8 +266,8 @@ const PrefilterTests = {
     const container = makeContainer("");
     const result = HighlightOverlayPresenter.prefilterWords(container);
 
-    // TODO: Fill in assertion
-    //   result should be an empty array
+    this.assert(Array.isArray(result), "result is an array");
+    this.assert(result.length === 0, "result is empty for empty text");
   },
 
   /**
@@ -274,8 +282,8 @@ const PrefilterTests = {
     const container = makeContainer("the quick brown fox");
     const result = HighlightOverlayPresenter.prefilterWords(container);
 
-    // TODO: Fill in assertion
-    //   result should be an empty array
+    this.assert(Array.isArray(result), "result is an array");
+    this.assert(result.length === 0, "result is empty when no glossary words match");
   },
 
   /**
@@ -302,9 +310,147 @@ const PrefilterTests = {
 
     const fullGlossarySize = Object.keys(bigGlossary).length; // 103
 
-    // TODO: Fill in assertions
-    //   result.length should be exactly 3 (cat, dog, fish)
-    //   result.length should be much less than fullGlossarySize
+    this.assert(result.length === 3, "result has exactly 3 words");
+    this.assert(result.length < fullGlossarySize, "result is smaller than full glossary (" + result.length + " vs " + fullGlossarySize + ")");
+  },
+
+  // ─── EDGE CASES (ADDITIONAL) ────────────────────────────────────
+
+  /**
+   * Tests that uppercase/mixed-case text still matches.
+   *
+   * The tokenizer lowercases text before matching, so "Running",
+   * "THE", "Ball" should all resolve correctly.
+   */
+  testCaseSensitivity() {
+    this.setup();
+    setupWordResolver(
+      { run: true, ball: true },
+      { running: "run" }
+    );
+
+    const container = makeContainer("The Boy Was RUNNING To The BALL");
+    const result = HighlightOverlayPresenter.prefilterWords(container);
+
+    this.assert(result.includes("run"), "uppercase 'RUNNING' resolves to 'run'");
+    this.assert(result.includes("running"), "uppercase 'RUNNING' expands to 'running'");
+    this.assert(result.includes("ball"), "uppercase 'BALL' matches 'ball'");
+  },
+
+  /**
+   * Tests that words adjacent to punctuation still match.
+   *
+   * The regex /\b[a-z]+\b/g uses word boundaries, so "ball," and
+   * "(run)" should tokenize to "ball" and "run".
+   */
+  testPunctuationAdjacent() {
+    this.setup();
+    setupWordResolver(
+      { ball: true, run: true, cat: true },
+      {}
+    );
+
+    const container = makeContainer('the ball, and (run) "cat"');
+    const result = HighlightOverlayPresenter.prefilterWords(container);
+
+    this.assert(result.includes("ball"), "'ball,' still matches 'ball'");
+    this.assert(result.includes("run"), "'(run)' still matches 'run'");
+    this.assert(result.includes("cat"), "'\"cat\"' still matches 'cat'");
+  },
+
+  /**
+   * Tests with a single word that IS in the glossary.
+   */
+  testSingleGlossaryWord() {
+    this.setup();
+    setupWordResolver({ hello: true }, {});
+
+    const container = makeContainer("hello");
+    const result = HighlightOverlayPresenter.prefilterWords(container);
+
+    this.assert(result.length === 1, "result has exactly 1 word");
+    this.assert(result.includes("hello"), "result includes 'hello'");
+  },
+
+  /**
+   * Tests with a single word that is NOT in the glossary.
+   */
+  testSingleNonGlossaryWord() {
+    this.setup();
+    setupWordResolver({ hello: true }, {});
+
+    const container = makeContainer("goodbye");
+    const result = HighlightOverlayPresenter.prefilterWords(container);
+
+    this.assert(result.length === 0, "result is empty for non-glossary word");
+  },
+
+  /**
+   * Tests that two base words sharing an inflection don't cause issues.
+   *
+   * Example: if "run" and "bat" both somehow had "runs" as an inflection
+   * (contrived), the Set should deduplicate "runs" in the output.
+   */
+  testOverlappingInflections() {
+    this.setup();
+    setupWordResolver(
+      { run: true, bat: true },
+      { runs: "run", bats: "bat", batting: "bat" }
+    );
+
+    const container = makeContainer("he runs while batting");
+    const result = HighlightOverlayPresenter.prefilterWords(container);
+
+    this.assert(result.includes("run"), "result includes 'run'");
+    this.assert(result.includes("runs"), "result includes 'runs'");
+    this.assert(result.includes("bat"), "result includes 'bat'");
+    this.assert(result.includes("bats"), "result includes 'bats'");
+    this.assert(result.includes("batting"), "result includes 'batting'");
+    const unique = new Set(result).size;
+    this.assert(unique === result.length, "no duplicates with overlapping inflections");
+  },
+
+  // ─── DIRECT wordResolver.getMatchingFormsInText TESTS ──────────
+  //
+  // These test the logic directly on the word resolver (where it lives),
+  // bypassing the presenter's thin DOM wrapper.
+
+  testResolverDirectBasic() {
+    setupWordResolver(
+      { boy: true, throw: true, ball: true },
+      { threw: "throw", throwing: "throw" }
+    );
+
+    const result = wordResolver.getMatchingFormsInText("the boy threw the ball");
+
+    this.assert(result.includes("boy"), "[resolver] includes 'boy'");
+    this.assert(result.includes("throw"), "[resolver] includes base 'throw'");
+    this.assert(result.includes("threw"), "[resolver] includes inflection 'threw'");
+    this.assert(result.includes("throwing"), "[resolver] includes inflection 'throwing'");
+    this.assert(result.includes("ball"), "[resolver] includes 'ball'");
+    this.assert(!result.includes("the"), "[resolver] excludes 'the'");
+  },
+
+  testResolverDirectEmpty() {
+    setupWordResolver({ run: true }, {});
+
+    const result = wordResolver.getMatchingFormsInText("");
+
+    this.assert(Array.isArray(result), "[resolver] returns array for empty string");
+    this.assert(result.length === 0, "[resolver] returns empty array for empty string");
+  },
+
+  testResolverDirectNoDuplicates() {
+    setupWordResolver(
+      { run: true },
+      { running: "run", runs: "run", ran: "run" }
+    );
+
+    // "run" and "running" both resolve to base "run", expansion should not double up
+    const result = wordResolver.getMatchingFormsInText("run running runs ran");
+
+    const unique = new Set(result).size;
+    this.assert(unique === result.length, "[resolver] no duplicates when multiple forms appear in text");
   },
 
   // ─── RUN ALL ──────────────────────────────────────────────────────
@@ -319,6 +465,14 @@ const PrefilterTests = {
     this.testEmptyText();
     this.testNoMatches();
     this.testResultSmallerThanGlossary();
+    this.testCaseSensitivity();
+    this.testPunctuationAdjacent();
+    this.testSingleGlossaryWord();
+    this.testSingleNonGlossaryWord();
+    this.testOverlappingInflections();
+    this.testResolverDirectBasic();
+    this.testResolverDirectEmpty();
+    this.testResolverDirectNoDuplicates();
 
     // Report results
     const passed = this.results.filter((r) => r.passed).length;

@@ -132,14 +132,23 @@ export const PopupPresenter = {
     );
     const bestIndex = VideoData.disambiguate(entries, nearbyWords);
 
-    // Set entry immediately so popup shows word info while loading
-    AppState.setCurrentEntry(entries[bestIndex]);
+    // No context signal + multiple variants → loop through all variants
+    if (bestIndex === -1 && entries.length > 1) {
+      this._loadAllVariants(word, entries);
+      return;
+    }
 
-    VideoService.getVideo(word, bestIndex, entries, {
+    // Context gave a confident pick (or single variant)
+    const index = bestIndex === -1 ? 0 : bestIndex;
+    AppState.setCurrentEntry(entries[index]);
+
+    VideoService.getVideo(word, index, entries, {
       onReady: (blobUrl, entry) => {
         AppState.setCurrentEntry(entry);
         AppState.setHasVideo(true);
         PopupView.render(AppState);
+        // Loop the single chosen variant
+        PopupView.videoElement.loop = true;
         PopupView.loadVideo(
           blobUrl,
           () => {},
@@ -151,6 +160,61 @@ export const PopupPresenter = {
         PopupView.render(AppState);
       },
     });
+  },
+
+  /**
+   * Load all variants in sequence when disambiguate has no context signal.
+   * Plays variant 0, then on 'ended' advances to 1, 2, etc., then loops back to 0.
+   */
+  _loadAllVariants(word, entries) {
+    let currentIndex = 0;
+
+    AppState.setCurrentEntry(entries[0]);
+    AppState.setLoading(true);
+    PopupView.render(AppState);
+
+    // Don't loop individual videos — we loop across variants instead
+    PopupView.videoElement.loop = false;
+
+    const playVariant = (index) => {
+      // Clean up previous ended listener
+      const video = PopupView.videoElement;
+      if (video._onEndedHandler) {
+        video.removeEventListener("ended", video._onEndedHandler);
+        delete video._onEndedHandler;
+      }
+
+      VideoService.getVideo(word, index, entries, {
+        onReady: (blobUrl, entry) => {
+          if (AppState.currentWord !== word) return;
+
+          AppState.setCurrentEntry(entry);
+          AppState.setHasVideo(true);
+          PopupView.render(AppState);
+          PopupView.loadVideo(
+            blobUrl,
+            () => {
+              // When this variant ends, advance to the next one
+              const onEnded = () => {
+                video.removeEventListener("ended", onEnded);
+                delete video._onEndedHandler;
+                currentIndex = (currentIndex + 1) % entries.length;
+                playVariant(currentIndex);
+              };
+              video._onEndedHandler = onEnded;
+              video.addEventListener("ended", onEnded);
+            },
+            () => {},
+          );
+        },
+        onError: () => {
+          currentIndex = (currentIndex + 1) % entries.length;
+          playVariant(currentIndex);
+        },
+      });
+    };
+
+    playVariant(0);
   },
 
   /**

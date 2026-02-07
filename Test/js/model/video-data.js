@@ -68,14 +68,15 @@ export const VideoData = {
   },
 
 
-  // NOTE: IT relies heavily on the density of highlighted words it would fail silently on less dense
-  // highlighted words
   // Pick the best variant for a word based on nearby context words.
   // Scores each variant by how well its lexical class and semantic field
   // match the surrounding highlighted words.
   //   +1 per neighbor with matching lexicalClass
   //   +2 per neighbor with matching semanticField (rarer, stronger signal)
-  // Returns the index of the best-scoring variant (0 if no signal).
+  //
+  // Returns:
+  //   index >= 0  — a confident pick (context gave a signal)
+  //   -1          — no context signal; caller should loop all variants
   disambiguate(entries, nearbyBaseWords) {
     if (entries.length <= 1) return 0;
 
@@ -115,6 +116,10 @@ export const VideoData = {
         bestIndex = i;
       }
     }
+
+    // No neighbor matched anything — no confident pick.
+    // Return -1 so the caller can loop through all variants.
+    if (bestScore <= 0) return -1;
 
     return bestIndex;
   },

@@ -146,11 +146,13 @@ export const PopupOverlayPresenter = {
   },
 
   /**
-   * Load video for current word
+   * Load video for current word.
    *
-   * Note: Without targetElement, we can't get nearby context for disambiguation.
-   * For now, we just use the first variant. In a more advanced implementation,
-   * you could track which range the cursor is near and get context from there.
+   * Without a targetElement we have no nearby-context for disambiguation,
+   * so disambiguate() would always return -1 for multi-variant words.
+   * Instead we skip the call and branch directly:
+   *   - multiple variants → loop through all of them
+   *   - single variant   → play on repeat (video.loop = true)
    */
   loadVideo(word) {
     const entries = VideoData.getAllEntriesForWord(word);
@@ -163,20 +165,23 @@ export const PopupOverlayPresenter = {
       return;
     }
 
-    // For now, use first variant (no context-based disambiguation)
-    // TODO: Could improve by getting nearby highlighted words
-    const bestIndex = 0;
+    // Multiple variants — loop through all of them in sequence
+    if (entries.length > 1) {
+      this._loadAllVariants(word, entries);
+      return;
+    }
 
-    // Set entry immediately so popup shows word info while loading
-    AppState.setCurrentEntry(entries[bestIndex]);
+    // Single variant — play with loop
+    AppState.setCurrentEntry(entries[0]);
     this.view.render(AppState);
 
-    VideoService.getVideo(word, bestIndex, entries, {
+    VideoService.getVideo(word, 0, entries, {
       onReady: (blobUrl, entry) => {
         AppState.setCurrentEntry(entry);
         AppState.setHasVideo(true);
         AppState.setLoading(false);
         this.view.render(AppState);
+        this.view._video.loop = true;
         this.view.loadVideo(blobUrl);
       },
       onError: () => {
@@ -185,6 +190,60 @@ export const PopupOverlayPresenter = {
         this.view.render(AppState);
       }
     });
+  },
+
+  /**
+   * Load all variants in sequence when a word has multiple signs.
+   * Plays variant 0, then on 'ended' advances to 1, 2, etc., then loops back to 0.
+   */
+  _loadAllVariants(word, entries) {
+    let currentIndex = 0;
+    const video = this.view._video;
+
+    AppState.setCurrentEntry(entries[0]);
+    AppState.setLoading(true);
+    this.view.render(AppState);
+
+    // Don't loop individual videos — we loop across variants instead
+    video.loop = false;
+
+    const playVariant = (index) => {
+      // Clean up previous ended listener
+      if (video._onEndedHandler) {
+        video.removeEventListener("ended", video._onEndedHandler);
+        delete video._onEndedHandler;
+      }
+
+      VideoService.getVideo(word, index, entries, {
+        onReady: (blobUrl, entry) => {
+          // Bail if user moved to a different word
+          if (AppState.currentWord !== word) return;
+
+          AppState.setCurrentEntry(entry);
+          AppState.setHasVideo(true);
+          AppState.setLoading(false);
+          this.view.render(AppState);
+          this.view.loadVideo(blobUrl);
+
+          // When this variant ends, advance to the next one
+          const onEnded = () => {
+            video.removeEventListener("ended", onEnded);
+            delete video._onEndedHandler;
+            currentIndex = (currentIndex + 1) % entries.length;
+            playVariant(currentIndex);
+          };
+          video._onEndedHandler = onEnded;
+          video.addEventListener("ended", onEnded);
+        },
+        onError: () => {
+          // Skip to next variant on error
+          currentIndex = (currentIndex + 1) % entries.length;
+          playVariant(currentIndex);
+        },
+      });
+    };
+
+    playVariant(0);
   },
 
   /**

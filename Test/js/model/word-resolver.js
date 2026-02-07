@@ -38,8 +38,14 @@ export const wordResolver = {
     return forms;
   },
 
-  // Find all glossary words that appear in a text
-  // Tokenizes text and does O(1) lookups against glossary + inflection map
+  // Find all glossary words that appear in a text string.
+  //
+  // HOW: tokenizes with /\b[a-z]+\b/g, then deduplicates into a Set so
+  // repeated words (e.g. "for" appearing 50x) become a single O(1) lookup.
+  // Each unique token is checked against the glossary and inflectionMap.
+  //
+  // A 20,000-word article has far fewer unique words, so the Set shrinks
+  // the work dramatically. The result can't exceed the glossary size (~2,350).
   getWordsInText(text) {
     const textWords = new Set(text.toLowerCase().match(/\b[a-z]+\b/g) || []);
     const matchedBaseWords = new Set();
@@ -58,6 +64,20 @@ export const wordResolver = {
     }
 
     return [...matchedBaseWords];
+  },
+
+  // Find all glossary matches in a text string, expanded to include inflections.
+  // Combines getWordsInText (find base words) + getAllForms (expand each).
+  // Returns a deduplicated array ready for the highlighter's regex builder.
+  getMatchingFormsInText(text) {
+    const baseWords = this.getWordsInText(text);
+    const allForms = new Set();
+    for (const base of baseWords) {
+      for (const form of this.getAllForms(base)) {
+        allForms.add(form);
+      }
+    }
+    return [...allForms];
   },
 
   // Check if word exists in glossary (with inflection map)

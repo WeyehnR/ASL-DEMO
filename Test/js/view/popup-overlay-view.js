@@ -99,7 +99,28 @@ export class PopupOverlayView {
       const text = node.textContent;
       const before = text.slice(0, offset).match(/\w+$/);
       const after = text.slice(offset).match(/^\w+/);
-      const word = (before?.[0] || "") + (after?.[0] || "");
+      let word = (before?.[0] || "") + (after?.[0] || "");
+
+      // Verify cursor is actually over the word, not just nearby.
+      // caretPositionFromPoint snaps to the nearest text even when the
+      // cursor is in whitespace, so we check the word's bounding rect.
+      if (word) {
+        const wordStart = offset - (before?.[0]?.length || 0);
+        const wordEnd = offset + (after?.[0]?.length || 0);
+        const range = document.createRange();
+        range.setStart(node, wordStart);
+        range.setEnd(node, wordEnd);
+        const rect = range.getBoundingClientRect();
+
+        if (
+          e.clientX < rect.left ||
+          e.clientX > rect.right ||
+          e.clientY < rect.top ||
+          e.clientY > rect.bottom
+        ) {
+          word = ""; // cursor is in whitespace, not on the word
+        }
+      }
 
       // Only fire callbacks if word changed
       if (word !== this._lastWord) {
