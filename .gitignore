@@ -18,6 +18,7 @@ nul
 
 # Claude Code
 .claude/
+CLAUDE.md
 
 # Personal docs
 ARCHITECTURE.md
@@ -29,10 +30,15 @@ Pictures/
 # Logs
 *.log
 
-# Playwright
+# Playwright / E2E
+e2e/
+playwright.config.js
 /test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
-e2e/screenshots/
+
+# Package files
+package.json
+package-lock.json
