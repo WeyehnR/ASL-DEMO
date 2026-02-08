@@ -157,4 +157,6 @@ export const PerfLogger = {
 //   __perf.print()   — view in console
 //   __perf.save()    — download file
 //   __perf.clear()   — reset
-window.__perf = PerfLogger;
+if (typeof window !== "undefined") {
+  window.__perf = PerfLogger;
+}

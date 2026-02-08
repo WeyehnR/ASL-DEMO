@@ -26,6 +26,8 @@
 // set up wordResolver with a fake glossary + inflection map.
 
 // Browser API mocks (needed because presenter imports the view)
+globalThis.window = globalThis;
+globalThis.performance = globalThis.performance || { now: () => Date.now() };
 globalThis.Range = class MockRange {
   constructor() {
     this._startNode = null;
@@ -453,6 +455,197 @@ const PrefilterTests = {
     this.assert(unique === result.length, "[resolver] no duplicates when multiple forms appear in text");
   },
 
+  // ─── PHRASE TESTS ──────────────────────────────────────────────────
+  //
+  // The glossary has ~255 multi-word entries stored with underscores
+  // (e.g. "high_school", "i_love_you"). These tests verify that the
+  // phrase scanning pipeline detects them in page text and outputs
+  // space-separated forms for the regex highlighter.
+
+  /**
+   * Basic phrase detection: text containing "high school" should produce
+   * "high school" in the output (space-separated, for regex matching).
+   */
+  testPhraseBasicDetection() {
+    this.setup();
+    setupWordResolver(
+      { high_school: true, cat: true },
+      {}
+    );
+
+    const result = wordResolver.getMatchingFormsInText(
+      "she went to high school yesterday"
+    );
+
+    this.assert(result.includes("high school"), "phrase 'high school' detected in text");
+    this.assert(result.includes("cat") === false, "'cat' not in text, not returned");
+  },
+
+  /**
+   * findBaseWord with a space-separated phrase should resolve to the
+   * underscore-keyed glossary entry.
+   */
+  testPhraseFindBaseWord() {
+    this.setup();
+    setupWordResolver({ high_school: true, sign_language: true }, {});
+
+    const result1 = wordResolver.findBaseWord("high school");
+    const result2 = wordResolver.findBaseWord("sign language");
+    const result3 = wordResolver.findBaseWord("not a phrase");
+
+    this.assert(result1 === "high_school", "findBaseWord('high school') → 'high_school'");
+    this.assert(result2 === "sign_language", "findBaseWord('sign language') → 'sign_language'");
+    this.assert(result3 === null, "findBaseWord('not a phrase') → null");
+  },
+
+  /**
+   * Long phrase: "going through a hard time" (5 words) should be detected.
+   */
+  testPhraseLong() {
+    this.setup();
+    setupWordResolver(
+      { going_through_a_hard_time: true },
+      {}
+    );
+
+    const result = wordResolver.getMatchingFormsInText(
+      "I was going through a hard time last year"
+    );
+
+    this.assert(
+      result.includes("going through a hard time"),
+      "long phrase 'going through a hard time' detected"
+    );
+  },
+
+  /**
+   * Numeric phrase: "1 dollar" should be detected via substring search
+   * even though the tokenizer /\b[a-z]+\b/g won't catch "1".
+   */
+  testPhraseNumeric() {
+    this.setup();
+    setupWordResolver({ "1_dollar": true }, {});
+
+    const result = wordResolver.getMatchingFormsInText(
+      "it costs 1 dollar to ride the bus"
+    );
+
+    this.assert(result.includes("1 dollar"), "numeric phrase '1 dollar' detected");
+  },
+
+  /**
+   * Overlap: text has both "high" (single word) and "high school" (phrase).
+   * Both should be detected — single words and phrases coexist.
+   */
+  testPhraseAndSingleWordOverlap() {
+    this.setup();
+    setupWordResolver(
+      { high: true, high_school: true, school: true },
+      {}
+    );
+
+    const result = wordResolver.getMatchingFormsInText(
+      "the high school is on the high hill near the school"
+    );
+
+    this.assert(result.includes("high school"), "phrase 'high school' detected");
+    this.assert(result.includes("high"), "single word 'high' also detected");
+    this.assert(result.includes("school"), "single word 'school' also detected");
+  },
+
+  /**
+   * Phrase NOT in text: glossary has "sign_language" but text only has "sign".
+   * The phrase should NOT be detected (substring "sign language" doesn't appear).
+   */
+  testPhraseNotInText() {
+    this.setup();
+    setupWordResolver(
+      { sign: true, sign_language: true },
+      {}
+    );
+
+    const result = wordResolver.getMatchingFormsInText(
+      "she made a sign on the wall"
+    );
+
+    this.assert(result.includes("sign"), "single word 'sign' detected");
+    this.assert(
+      !result.includes("sign language"),
+      "phrase 'sign language' NOT detected when only 'sign' is in text"
+    );
+  },
+
+  // ─── SUPPRESS PATTERN TESTS ──────────────────────────────────────
+  //
+  // Collocation-based suppression prevents highlighting words when
+  // the surrounding text indicates a different sense than the glossary
+  // sign (e.g. "degree of" = abstract, not diploma).
+
+  /**
+   * "degree of" should be suppressed — abstract measurement sense.
+   */
+  testSuppressDegreeOf() {
+    this.setup();
+    setupWordResolver({ degree: true }, {});
+
+    const suppressed = wordResolver.shouldSuppressMatch(
+      "degree", "the higher degree of iconicity", 11, 6
+    );
+    this.assert(suppressed === true, "suppress 'degree of' (abstract sense)");
+  },
+
+  /**
+   * "degrees of" (plural) should also be suppressed.
+   */
+  testSuppressDegreesOf() {
+    this.setup();
+    setupWordResolver({ degree: true }, {});
+
+    const suppressed = wordResolver.shouldSuppressMatch(
+      "degree", "show degrees of borrowing", 5, 7
+    );
+    this.assert(suppressed === true, "suppress 'degrees of' (plural abstract)");
+  },
+
+  /**
+   * "varying degree" should be suppressed — modifier + degree pattern.
+   */
+  testSuppressVaryingDegree() {
+    this.setup();
+    setupWordResolver({ degree: true }, {});
+
+    const suppressed = wordResolver.shouldSuppressMatch(
+      "degree", "with varying degree in quality", 13, 6
+    );
+    this.assert(suppressed === true, "suppress 'varying degree' (modifier + degree)");
+  },
+
+  /**
+   * "her degree" should NOT be suppressed — diploma sense.
+   */
+  testNoSuppressDiplomaDegree() {
+    this.setup();
+    setupWordResolver({ degree: true }, {});
+
+    const suppressed = wordResolver.shouldSuppressMatch(
+      "degree", "she earned her degree last year", 14, 6
+    );
+    this.assert(suppressed === false, "do NOT suppress 'her degree' (diploma sense)");
+  },
+
+  /**
+   * Words without suppress patterns should never be suppressed.
+   */
+  testNoSuppressUnlistedWord() {
+    this.setup();
+    setupWordResolver({ cat: true }, {});
+
+    const suppressed = wordResolver.shouldSuppressMatch(
+      "cat", "the cat sat on the mat", 4, 3
+    );
+    this.assert(suppressed === false, "no suppress patterns for 'cat'");
+  },
+
   // ─── RUN ALL ──────────────────────────────────────────────────────
 
   runAll() {
@@ -473,6 +666,17 @@ const PrefilterTests = {
     this.testResolverDirectBasic();
     this.testResolverDirectEmpty();
     this.testResolverDirectNoDuplicates();
+    this.testPhraseBasicDetection();
+    this.testPhraseFindBaseWord();
+    this.testPhraseLong();
+    this.testPhraseNumeric();
+    this.testPhraseAndSingleWordOverlap();
+    this.testPhraseNotInText();
+    this.testSuppressDegreeOf();
+    this.testSuppressDegreesOf();
+    this.testSuppressVaryingDegree();
+    this.testNoSuppressDiplomaDegree();
+    this.testNoSuppressUnlistedWord();
 
     // Report results
     const passed = this.results.filter((r) => r.passed).length;

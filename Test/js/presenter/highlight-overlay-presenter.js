@@ -1,12 +1,9 @@
 /**
  * Highlight Overlay Presenter
  *
- * Uses HighlightOverlayView (CSS Custom Highlight API) instead of mark.js.
- *
- * KEY DIFFERENCE FROM highlight-presenter.js:
- *   - No <mark> elements to attach event listeners to
+ * Uses HighlightOverlayView (CSS Custom Highlight API) for non-DOM-mutating highlights.
  *   - Tracks matches via onEachMatch callback (stores ranges, not elements)
- *   - Navigation scrolls to range positions instead of element.scrollIntoView()
+ *   - Navigation scrolls to range positions
  *   - Hover detection is handled by PopupOverlayPresenter (via mousemove)
  */
 
@@ -85,6 +82,15 @@ export const HighlightOverlayPresenter = {
     this.view.highlightAll(container, allWords, (matchedText, textNode, offset) => {
       // Find the base word for this match
       const baseWord = wordResolver.findBaseWord(matchedText) || matchedText.toLowerCase();
+
+      // Suppress matches in collocations that indicate a different sense
+      // (e.g. "degree of" → abstract, not diploma). Pop the range the view
+      // just pushed so it won't be registered with CSS.highlights.
+      if (wordResolver.shouldSuppressMatch(baseWord, textNode.textContent, offset, matchedText.length)) {
+        this.view._ranges.pop();
+        return;
+      }
+
       this.matchedBaseWords.add(baseWord);
 
       // Store the range for potential navigation
@@ -126,6 +132,12 @@ export const HighlightOverlayPresenter = {
 
     this.view.highlightAll(container, allForms, (matchedText, textNode, offset) => {
       const baseWord = wordResolver.findBaseWord(matchedText) || matchedText.toLowerCase();
+
+      if (wordResolver.shouldSuppressMatch(baseWord, textNode.textContent, offset, matchedText.length)) {
+        this.view._ranges.pop();
+        return;
+      }
+
       this.matchedBaseWords.add(baseWord);
 
       const range = this.view._ranges[this.view._ranges.length - 1];
@@ -233,6 +245,94 @@ export const HighlightOverlayPresenter = {
       }
     }
     return false;
+  },
+
+  /**
+   * Find which highlighted word (if any) the cursor is over by checking
+   * stored match ranges. This is essential for phrases — when the cursor
+   * is over "school" in a highlighted "high school" range, single-word
+   * lookup returns "school" but this method returns "high_school".
+   *
+   * @param {number} clientX — Mouse x position
+   * @param {number} clientY — Mouse y position
+   * @returns {string|null} — The base word if cursor is over a match, null otherwise
+   */
+  findMatchAtPoint(clientX, clientY) {
+    for (const match of this.matches) {
+      const rects = match.range.getClientRects();
+      for (const rect of rects) {
+        if (
+          clientX >= rect.left &&
+          clientX <= rect.right &&
+          clientY >= rect.top &&
+          clientY <= rect.bottom
+        ) {
+          return match.baseWord;
+        }
+      }
+    }
+    return null;
+  },
+
+  /**
+   * Extract disambiguation context for a hovered word.
+   *
+   * Finds the match at the given point, then collects two types of context
+   * from the same paragraph:
+   *   1. nearbyBaseWords — other highlighted glossary words (for lexicalClass/
+   *      semanticField scoring in VideoData.disambiguate Layer 1)
+   *   2. contextWords — ALL tokenized words (for Lesk-style meanings matching
+   *      in Layer 2)
+   *
+   * @param {number} clientX — Mouse x position
+   * @param {number} clientY — Mouse y position
+   * @param {string} targetBaseWord — The word being disambiguated (excluded from neighbors)
+   * @returns {{ nearbyBaseWords: string[], contextWords: string[] }}
+   */
+  getContextForWord(clientX, clientY, targetBaseWord) {
+    // Find which match the cursor is over
+    let targetMatch = null;
+    for (const match of this.matches) {
+      const rects = match.range.getClientRects();
+      for (const rect of rects) {
+        if (
+          clientX >= rect.left &&
+          clientX <= rect.right &&
+          clientY >= rect.top &&
+          clientY <= rect.bottom
+        ) {
+          targetMatch = match;
+          break;
+        }
+      }
+      if (targetMatch) break;
+    }
+
+    if (!targetMatch) {
+      return { nearbyBaseWords: [], contextWords: [] };
+    }
+
+    // Find the paragraph containing this match
+    const paragraph =
+      targetMatch.textNode.parentElement?.closest("p") ||
+      targetMatch.textNode.parentElement;
+
+    // Collect other highlighted base words in the same paragraph
+    const nearbySet = new Set();
+    for (const match of this.matches) {
+      if (match.baseWord === targetBaseWord) continue;
+      if (paragraph?.contains(match.textNode)) {
+        nearbySet.add(match.baseWord);
+      }
+    }
+
+    // Tokenize the full paragraph text for Lesk matching
+    const paragraphText =
+      paragraph?.textContent || targetMatch.textNode.textContent;
+    const contextWords =
+      paragraphText.toLowerCase().match(/\b[a-z]+\b/g) || [];
+
+    return { nearbyBaseWords: [...nearbySet], contextWords };
   },
 
   /**

@@ -1,14 +1,11 @@
 /**
  * Popup Overlay Presenter
  *
- * Uses PopupOverlayView (Shadow DOM) instead of PopupView.
- *
- * KEY DIFFERENCE FROM popup-presenter.js:
+ * Uses PopupOverlayView (Shadow DOM) for ASL sign popups on hover.
  *   - Uses mousemove + caretPositionFromPoint for hover detection
- *     (no <mark> elements to attach mouseenter/mouseleave to)
  *   - Receives word + coordinates instead of element
  *   - Checks with HighlightOverlayPresenter if word is highlighted
- *   - No targetElement for video disambiguation (uses word only)
+ *   - Uses paragraph context for Lesk-style video disambiguation
  */
 
 import { VideoData } from "../model/video-data.js";
@@ -65,8 +62,16 @@ export const PopupOverlayPresenter = {
    * The trade-off is better responsiveness vs. perfect precision.
    */
   handleHoverWord(word, clientX, clientY) {
-    // Check if this word is in our glossary
-    const baseWord = HighlightOverlayPresenter.isWordHighlighted(word);
+    // Prefer phrase match — cursor inside a highlighted phrase range.
+    // If hovering over "school" in highlighted "high school", single-word
+    // lookup returns "school" but range lookup returns "high_school".
+    let baseWord = HighlightOverlayPresenter.findMatchAtPoint(clientX, clientY);
+
+    // Fall back to single-word lookup
+    if (!baseWord) {
+      baseWord = HighlightOverlayPresenter.isWordHighlighted(word);
+    }
+
     if (!baseWord) {
       return;
     }
@@ -91,8 +96,8 @@ export const PopupOverlayPresenter = {
     this.view.render(AppState);
     this.view.show(clientX, clientY);
 
-    // Load video
-    this.loadVideo(baseWord);
+    // Load video (pass coordinates for disambiguation context)
+    this.loadVideo(baseWord, clientX, clientY);
   },
 
   /**
@@ -133,7 +138,7 @@ export const PopupOverlayPresenter = {
     this.view.render(AppState);
     this.view.show(clientX, clientY);
     this.view._isPinned = true;
-    this.loadVideo(baseWord);
+    this.loadVideo(baseWord, clientX, clientY);
   },
 
   /**
@@ -148,13 +153,16 @@ export const PopupOverlayPresenter = {
   /**
    * Load video for current word.
    *
-   * Without a targetElement we have no nearby-context for disambiguation,
-   * so disambiguate() would always return -1 for multi-variant words.
-   * Instead we skip the call and branch directly:
-   *   - multiple variants → loop through all of them
-   *   - single variant   → play on repeat (video.loop = true)
+   * For multi-variant words, extracts paragraph context via
+   * HighlightOverlayPresenter and runs Lesk-style disambiguation.
+   * If a confident pick is found, loops that single variant.
+   * If no signal, falls back to cycling all variants.
+   *
+   * @param {string} word — base word to load
+   * @param {number} clientX — mouse x (for locating paragraph context)
+   * @param {number} clientY — mouse y
    */
-  loadVideo(word) {
+  loadVideo(word, clientX, clientY) {
     const entries = VideoData.getAllEntriesForWord(word);
 
     if (!entries.length) {
@@ -165,8 +173,39 @@ export const PopupOverlayPresenter = {
       return;
     }
 
-    // Multiple variants — loop through all of them in sequence
+    // Multiple variants — try context-based disambiguation
     if (entries.length > 1) {
+      const { nearbyBaseWords, contextWords } =
+        HighlightOverlayPresenter.getContextForWord(clientX, clientY, word);
+
+      const bestIndex = VideoData.disambiguate(
+        entries, nearbyBaseWords, contextWords, word
+      );
+
+      if (bestIndex >= 0) {
+        // Confident pick — play this single variant on loop
+        AppState.setCurrentEntry(entries[bestIndex]);
+        this.view.render(AppState);
+
+        VideoService.getVideo(word, bestIndex, entries, {
+          onReady: (blobUrl, entry) => {
+            AppState.setCurrentEntry(entry);
+            AppState.setHasVideo(true);
+            AppState.setLoading(false);
+            this.view.render(AppState);
+            this.view._video.loop = true;
+            this.view.loadVideo(blobUrl);
+          },
+          onError: () => {
+            AppState.setHasVideo(false);
+            AppState.setLoading(false);
+            this.view.render(AppState);
+          }
+        });
+        return;
+      }
+
+      // No signal — fall back to cycling all variants
       this._loadAllVariants(word, entries);
       return;
     }

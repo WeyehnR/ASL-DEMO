@@ -6,6 +6,7 @@
  */
 
 import { PerfLogger } from "../utils/PerfLogger.js";
+import { CONFIG } from "../config.js";
 
 export class HighlightOverlayView {
   constructor() {
@@ -87,12 +88,29 @@ export class HighlightOverlayView {
    */
   _injectStyles() {
     this._styleEl = document.createElement("style");
+    const preset = CONFIG.highlight.presets[CONFIG.highlight.color] || CONFIG.highlight.color;
     this._styleEl.textContent = `
         ::highlight(${this._highlightName}){
-          background-color: yellow;
+          background-color: ${preset};
         }
     `;
     document.head.appendChild(this._styleEl);
+  }
+
+  /**
+   * Change the highlight color at runtime.
+   *
+   * @param {string} colorOrPreset — a preset name ("green", "cyan", "pink")
+   *                                 or any valid CSS color value
+   */
+  setColor(colorOrPreset) {
+    const resolved = CONFIG.highlight.presets[colorOrPreset] || colorOrPreset;
+    CONFIG.highlight.color = colorOrPreset;
+    this._styleEl.textContent = `
+        ::highlight(${this._highlightName}){
+          background-color: ${resolved};
+        }
+    `;
   }
 
   /**

@@ -1,12 +1,10 @@
 /**
  * App Overlay Presenter
  *
- * Main application coordinator using the overlay views (CSS Highlight API + Shadow DOM).
- *
- * KEY DIFFERENCES FROM app-presenter.js:
+ * Main application coordinator.
  *   - Uses HighlightOverlayPresenter (CSS Highlight API, no <mark> elements)
  *   - Uses PopupOverlayPresenter (Shadow DOM, mousemove hover detection)
- *   - Populates word chips from matched base words, not from querying <mark> elements
+ *   - Populates word chips from matched base words
  */
 
 import { VideoData } from "../model/video-data.js";
@@ -133,6 +131,9 @@ const AppOverlayPresenter = {
 document.addEventListener("DOMContentLoaded", async () => {
   await VideoData.init();
   AppOverlayPresenter.init();
+
+  // Expose for DevTools console access
+  window.highlightPresenter = HighlightOverlayPresenter;
 });
 
 export { AppOverlayPresenter };
