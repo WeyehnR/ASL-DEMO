@@ -23,6 +23,7 @@ export class PopupOverlayView {
     this._onHoverWord = null; // callback the presenter sets
     this._onLeaveWord = null; // callback the presenter sets
     this._mouseMoveHandler = null; // stored for removal in stopHoverDetection
+    this._rafId = null; // tracks pending requestAnimationFrame
   }
 
   // ─── LIFECYCLE ──────────────────────────────────────────────────────
@@ -69,7 +70,9 @@ export class PopupOverlayView {
 
     PerfLogger.startMouseMoveTracking();
 
-    this._mouseMoveHandler = (e) => {
+    // The actual handler logic — kept as a separate function so the
+    // rAF wrapper below can call it with the most recent mouse event.
+    const handleMouseMove = (e) => {
       const t0 = performance.now();
 
       // Get text node + offset under cursor (browser-compatible)
@@ -142,6 +145,17 @@ export class PopupOverlayView {
       PerfLogger.trackMouseMove(performance.now() - t0);
     };
 
+    // rAF throttle: only run the handler once per animation frame (~60fps).
+    // Without this, mousemove fires hundreds of times/sec and each call
+    // forces expensive layout queries (caretPositionFromPoint, getBoundingClientRect).
+    this._mouseMoveHandler = (e) => {
+      if (this._rafId) return; // already scheduled, skip until next frame
+      this._rafId = requestAnimationFrame(() => {
+        handleMouseMove(e);
+        this._rafId = null;
+      });
+    };
+
     document.addEventListener("mousemove", this._mouseMoveHandler);
   }
 
@@ -152,6 +166,10 @@ export class PopupOverlayView {
     if (this._mouseMoveHandler) {
       document.removeEventListener("mousemove", this._mouseMoveHandler);
       this._mouseMoveHandler = null;
+    }
+    if (this._rafId) {
+      cancelAnimationFrame(this._rafId);
+      this._rafId = null;
     }
     this._lastWord = "";
   }

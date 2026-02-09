@@ -16,12 +16,15 @@
  *   // Save to file (triggers browser download):
  *   PerfLogger.save();
  *
- *   // Also exposed on window so you can call from DevTools console:
- *   window.__perf.save()
+ *   // Toggle on/off from DevTools console:
+ *   window.__perf.enable()
+ *   window.__perf.disable()
  *   window.__perf.print()
+ *   window.__perf.save()
  */
 
 export const PerfLogger = {
+  _enabled: false,
   _entries: [],
   _timers: {},
 
@@ -29,12 +32,29 @@ export const PerfLogger = {
   _mouse: { count: 0, totalMs: 0, maxMs: 0 },
   _mouseIntervalId: null,
 
+  // ─── TOGGLE ──────────────────────────────────────────────────────
+
+  enable() {
+    this._enabled = true;
+    console.log("[PerfLogger] Enabled");
+  },
+
+  disable() {
+    this._enabled = false;
+    if (this._mouseIntervalId) {
+      clearInterval(this._mouseIntervalId);
+      this._mouseIntervalId = null;
+    }
+    console.log("[PerfLogger] Disabled");
+  },
+
   // ─── TIMING ────────────────────────────────────────────────────────
 
   /**
    * Start a named timer.
    */
   time(label) {
+    if (!this._enabled) return;
     this._timers[label] = performance.now();
   },
 
@@ -44,6 +64,7 @@ export const PerfLogger = {
    * @param {object} meta  - Extra data to attach (e.g. { words: 500 })
    */
   timeEnd(label, meta = {}) {
+    if (!this._enabled) return 0;
     const start = this._timers[label];
     if (start === undefined) {
       console.warn(`[PerfLogger] No timer named "${label}"`);
@@ -69,6 +90,7 @@ export const PerfLogger = {
    * Call this inside the handler; stats are flushed every 5 seconds.
    */
   trackMouseMove(durationMs) {
+    if (!this._enabled) return;
     this._mouse.count++;
     this._mouse.totalMs += durationMs;
     if (durationMs > this._mouse.maxMs) this._mouse.maxMs = durationMs;
@@ -79,6 +101,7 @@ export const PerfLogger = {
    * Call once during init.
    */
   startMouseMoveTracking() {
+    if (!this._enabled) return;
     if (this._mouseIntervalId) return;
     this._mouseIntervalId = setInterval(() => {
       const s = this._mouse;
@@ -154,6 +177,8 @@ export const PerfLogger = {
 };
 
 // Expose globally so you can call from DevTools console:
+//   __perf.enable()  — start recording
+//   __perf.disable() — stop recording (also stops mousemove interval)
 //   __perf.print()   — view in console
 //   __perf.save()    — download file
 //   __perf.clear()   — reset

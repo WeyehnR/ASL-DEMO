@@ -14,6 +14,12 @@ export const VideoService = {
   // (user hovers word A, then quickly hovers word B — A's fetch should be ignored)
   _loadingWord: null,
 
+  // Background fetch queue — limits how many variant fetches run at once
+  // so they don't compete with the primary fetch the user is waiting on.
+  _fetchQueue: [],
+  _activeFetches: 0,
+  _MAX_BACKGROUND_FETCHES: 3,
+
   /**
    * Initialize the cache. On eviction, revoke all blob URLs to free memory.
    */
@@ -34,6 +40,8 @@ export const VideoService = {
    */
   getVideo(word, bestIndex, entries, { onReady, onError }) {
     this._loadingWord = word;
+    // New word hovered — drop any queued background fetches from the old word
+    this._fetchQueue = [];
 
     // --- Cache hit: serve from memory ---
     const cached = this._cache.get(word);
@@ -102,15 +110,37 @@ export const VideoService = {
   _fetchRemainingVariants(entries, cacheEntry, skipIndex) {
     entries.forEach((entry, i) => {
       if (i === skipIndex) return;
+      this._fetchQueue.push({ entry, cacheEntry, index: i });
+    });
+    this._processQueue();
+  },
+
+  /**
+   * Pull items off the queue up to _MAX_BACKGROUND_FETCHES at a time.
+   * Each fetch calls _processQueue again when it finishes, so the
+   * queue keeps draining without exceeding the concurrency cap.
+   */
+  _processQueue() {
+    while (
+      this._activeFetches < this._MAX_BACKGROUND_FETCHES &&
+      this._fetchQueue.length > 0
+    ) {
+      const { entry, cacheEntry, index } = this._fetchQueue.shift();
       const path = CONFIG.video.basePath + entry.videoFile;
+      this._activeFetches++;
+
       fetch(path)
         .then((response) => response.blob())
         .then((blob) => {
-          cacheEntry.blobUrls[i] = URL.createObjectURL(blob);
+          cacheEntry.blobUrls[index] = URL.createObjectURL(blob);
         })
         .catch(() => {
-          cacheEntry.blobUrls[i] = null;
+          cacheEntry.blobUrls[index] = null;
+        })
+        .finally(() => {
+          this._activeFetches--;
+          this._processQueue();
         });
-    });
+    }
   },
 };
